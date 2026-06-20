@@ -3,7 +3,9 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
-data/
+# Runtime snapshot dirs only — must NOT match source dirs like shared/src/data.
+/data/
+/server/data/
 *.log
 .DS_Store
 .claude/settings.json
