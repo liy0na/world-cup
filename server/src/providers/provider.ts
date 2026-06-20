@@ -87,9 +87,17 @@ export const TEAM_CODES: Record<string, string> = {
   Panama: 'PAN',
 };
 
-/** Preferred display names (FIFA-canonical) overriding the backbone's, keyed by team code. */
+/**
+ * FIFA-canonical display names overriding the backbone's, keyed by team code.
+ */
 export const DISPLAY_NAMES: Record<string, string> = {
   CIV: "Côte d'Ivoire",
+  KOR: 'Korea Republic',
+  CZE: 'Czechia',
+  BIH: 'Bosnia and Herzegovina',
+  TUR: 'Türkiye',
+  CPV: 'Cabo Verde',
+  COD: 'Congo DR',
 };
 
 /** Normalise a team display name to a comparable key (diacritics/spacing-insensitive). */
