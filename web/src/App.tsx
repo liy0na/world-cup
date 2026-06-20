@@ -53,7 +53,7 @@ export function App() {
   const scenarioCount = Object.keys(scenario).length;
   const phaseLabel = view
     ? view.status.phase === 'group'
-      ? `${t('groupStage')} · ${t('matchday', { n: view.status.matchday ?? '–' })}`
+      ? t('groupStage')
       : view.status.phase === 'knockout'
         ? t('knockoutStage')
         : t('complete')

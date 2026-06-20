@@ -61,30 +61,52 @@ function Row({ code, name, score, show, live }: { code: string; name: string; sc
   );
 }
 
+function Strip({
+  title,
+  badge,
+  matches,
+  teams,
+  t,
+  lang,
+}: {
+  title: string;
+  badge?: string;
+  matches: Match[];
+  teams: TeamMap;
+  t: T;
+  lang: Lang;
+}) {
+  return (
+    <section>
+      <div className="flex items-baseline gap-3 mb-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">{title}</h2>
+        {badge && <span className="text-xs text-red-400">{badge}</span>}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {matches.map((m) => (
+          <MatchCard key={m.id} match={m} teams={teams} t={t} lang={lang} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function LiveScores({ matches, teams }: Props) {
   const { t, lang } = useI18n();
   const group = matches.filter((m) => m.stage === 'group');
   const live = group.filter((m) => m.status === 'live');
   const byKickoff = (a: Match, b: Match) => Date.parse(a.kickoff) - Date.parse(b.kickoff);
-  const recent = group.filter((m) => m.status === 'finished').sort(byKickoff).slice(-6).reverse();
-  const upcoming = group.filter((m) => m.status === 'scheduled').sort(byKickoff).slice(0, 8);
+  const recent = group.filter((m) => m.status === 'finished').sort(byKickoff).slice(-12).reverse();
+  const upcoming = group.filter((m) => m.status === 'scheduled').sort(byKickoff).slice(0, 10);
 
-  const ordered = [...live, ...recent, ...upcoming];
-  if (ordered.length === 0) return null;
+  if (live.length + recent.length + upcoming.length === 0) return null;
 
+  const common = { teams, t, lang };
   return (
-    <section>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          {live.length > 0 ? t('liveNow') : t('latestUpcoming')}
-        </h2>
-        {live.length > 0 && <span className="text-xs text-red-400">{t('inPlay', { n: live.length })}</span>}
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {ordered.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} t={t} lang={lang} />
-        ))}
-      </div>
-    </section>
+    <div className="space-y-5">
+      {live.length > 0 && <Strip title={t('liveNow')} badge={t('inPlay', { n: live.length })} matches={live} {...common} />}
+      {recent.length > 0 && <Strip title={t('recentResults')} matches={recent} {...common} />}
+      {upcoming.length > 0 && <Strip title={t('upcoming')} matches={upcoming} {...common} />}
+    </div>
   );
 }
