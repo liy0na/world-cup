@@ -1,0 +1,125 @@
+import { describe, expect, it } from 'vitest';
+import { computeQualification } from '../src/qualification';
+import type { GroupLetter, Match, Team } from '../src/types';
+import { result, team } from './helpers';
+
+/** A finished 4-team group whose 3rd-placed team ends on 4 points (sorted 5,4,4,3). */
+function finishedGroupThird4(L: GroupLetter): { teams: Team[]; matches: Match[] } {
+  const [a, b, c, d] = [`${L}1`, `${L}2`, `${L}3`, `${L}4`];
+  return {
+    teams: [team(a, L), team(b, L), team(c, L), team(d, L)],
+    matches: [
+      result(L, a, b, 1, 0),
+      result(L, a, c, 0, 0),
+      result(L, a, d, 0, 0),
+      result(L, b, c, 1, 0),
+      result(L, d, b, 1, 0),
+      result(L, c, d, 1, 0),
+    ],
+  };
+}
+
+describe('computeQualification — within-group clinching', () => {
+  it('flags a team that has clinched 1st as won_group', () => {
+    const teams = [team('a1', 'A'), team('a2', 'A'), team('a3', 'A'), team('a4', 'A')];
+    const matches = [
+      result('A', 'a1', 'a2', 1, 0),
+      result('A', 'a1', 'a3', 1, 0),
+      result('A', 'a1', 'a4', 1, 0), // a1 = 9, done
+      result('A', 'a2', 'a3', 0, 0, { status: 'scheduled' }),
+      result('A', 'a2', 'a4', 0, 0, { status: 'scheduled' }),
+      result('A', 'a3', 'a4', 0, 0, { status: 'scheduled' }),
+    ];
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['a1']!.outlook).toBe('won_group');
+    expect(q.byTeam['a1']!.clinchedRank).toBe(1);
+    expect(q.byTeam['a2']!.outlook).toBe('alive');
+  });
+
+  it('flags a team that has clinched top-2 (but not 1st) as advanced', () => {
+    const teams = [team('a1', 'A'), team('a2', 'A'), team('a3', 'A'), team('a4', 'A')];
+    const matches = [
+      result('A', 'a1', 'a3', 1, 0),
+      result('A', 'a1', 'a4', 1, 0), // a1 = 6, one game left (vs a2)
+      result('A', 'a2', 'a3', 1, 0),
+      result('A', 'a2', 'a4', 1, 0), // a2 = 6, one game left (vs a1)
+      result('A', 'a3', 'a4', 1, 0), // a3 = 3 done, a4 = 0 done
+      result('A', 'a1', 'a2', 0, 0, { status: 'scheduled' }),
+    ];
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['a1']!.outlook).toBe('advanced');
+    expect(q.byTeam['a2']!.outlook).toBe('advanced');
+  });
+
+  it('eliminates a team via head-to-head even though it could win its last game (2026 rule)', () => {
+    // STR is strong (6 pts, plays T last). X and Y are on 3 and have both BEATEN T.
+    // T (0 pts) can beat STR to reach 3, but when it ties X or Y it loses the head-to-head,
+    // so head-to-head (criterion a, before goal difference) keeps T 4th in every scenario.
+    const teams = [team('STR', 'C'), team('XX', 'C'), team('YY', 'C'), team('TT', 'C')];
+    const matches = [
+      result('C', 'XX', 'TT', 1, 0), // X beat T
+      result('C', 'YY', 'TT', 1, 0), // Y beat T -> T has lost H2H to both
+      result('C', 'STR', 'XX', 1, 0),
+      result('C', 'STR', 'YY', 1, 0), // STR = 6
+      result('C', 'STR', 'TT', 0, 0, { status: 'scheduled' }), // T's last game (max 3 pts)
+      result('C', 'XX', 'YY', 0, 0, { status: 'scheduled' }),
+    ];
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['TT']!.outlook).toBe('eliminated');
+    expect(q.byTeam['TT']!.maxRank).toBe(4);
+    expect(q.byTeam['STR']!.outlook).toBe('won_group'); // STR wins H2H against any team it ties
+  });
+
+  it('flags a team locked into last place as eliminated', () => {
+    const teams = [team('z1', 'B'), team('z2', 'B'), team('z3', 'B'), team('z4', 'B')];
+    const matches = [
+      result('B', 'z1', 'z4', 1, 0),
+      result('B', 'z2', 'z4', 1, 0),
+      result('B', 'z3', 'z4', 1, 0), // z4 lost all 3, done, 0 pts
+      result('B', 'z1', 'z2', 0, 0, { status: 'scheduled' }),
+      result('B', 'z1', 'z3', 0, 0, { status: 'scheduled' }),
+      result('B', 'z2', 'z3', 0, 0, { status: 'scheduled' }),
+    ];
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['z4']!.outlook).toBe('eliminated');
+    expect(q.byTeam['z4']!.clinchedRank).toBe(4);
+  });
+});
+
+describe('computeQualification — best-third elimination across groups', () => {
+  // Target team A4: cannot reach the top 2, best possible total = 3 points, but CAN finish 3rd
+  // (it can still beat A3 head-to-head), so only the cross-group third-place bound can eliminate it.
+  const targetTeams = [team('A1', 'A'), team('A2', 'A'), team('A3', 'A'), team('A4', 'A')];
+  const targetMatches: Match[] = [
+    result('A', 'A1', 'A3', 1, 0),
+    result('A', 'A1', 'A4', 1, 0), // A1 = 6 (remaining vs A2)
+    result('A', 'A2', 'A3', 1, 0),
+    result('A', 'A2', 'A4', 1, 0), // A2 = 6 (remaining vs A1)
+    result('A', 'A1', 'A2', 0, 0, { status: 'scheduled' }), // top game open
+    result('A', 'A3', 'A4', 0, 0, { status: 'scheduled' }), // A4 can win this to finish 3rd on 3 pts
+  ];
+
+  function withOtherGroups(letters: GroupLetter[]) {
+    const teams = [...targetTeams];
+    const matches = [...targetMatches];
+    for (const L of letters) {
+      const g = finishedGroupThird4(L);
+      teams.push(...g.teams);
+      matches.push(...g.matches);
+    }
+    return { teams, matches };
+  }
+
+  it('eliminates the team when 8 other groups guarantee a stronger third', () => {
+    const { teams, matches } = withOtherGroups(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['A4']!.minRank).toBeGreaterThanOrEqual(3); // can't reach top 2
+    expect(q.byTeam['A4']!.outlook).toBe('eliminated');
+  });
+
+  it('keeps the team alive when only 7 other groups outrank its best', () => {
+    const { teams, matches } = withOtherGroups(['B', 'C', 'D', 'E', 'F', 'G', 'H']);
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['A4']!.outlook).not.toBe('eliminated');
+  });
+});

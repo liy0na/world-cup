@@ -49,6 +49,25 @@ describe('computeGroupTable — primary ordering', () => {
 describe('computeGroupTable — head-to-head', () => {
   const teams: Team[] = [team('t1', 'A'), team('t2', 'A'), team('t3', 'A'), team('t4', 'A')];
 
+  it('ranks the head-to-head winner above a team with better overall GD (2026 rule)', () => {
+    const teams: Team[] = [team('a', 'A'), team('b', 'A'), team('c', 'A'), team('d', 'A')];
+    const matches = [
+      result('A', 'a', 'b', 1, 0), // a beat b head-to-head
+      result('A', 'a', 'd', 0, 0),
+      result('A', 'c', 'a', 1, 0),
+      result('A', 'b', 'c', 3, 0), // b runs up the score elsewhere
+      result('A', 'b', 'd', 0, 0),
+      result('A', 'c', 'd', 1, 0),
+    ];
+    const t = computeGroupTable('A', teams, matches);
+    const ra = t.rows.find((r) => r.teamId === 'a')!;
+    const rb = t.rows.find((r) => r.teamId === 'b')!;
+    expect(ra.points).toBe(4);
+    expect(rb.points).toBe(4);
+    expect(rb.gd).toBeGreaterThan(ra.gd); // b has the better overall goal difference
+    expect(ra.rank).toBeLessThan(rb.rank); // ...but a won head-to-head, so a is ranked higher
+  });
+
   it('separates two teams tied on points/GD/goals by their head-to-head result', () => {
     const matches = [
       result('A', 't1', 't2', 2, 1), // t1 wins the head-to-head

@@ -130,6 +130,34 @@ export interface TournamentStatus {
   matchday?: number;
 }
 
+/**
+ * A team's mathematically-certain qualification outlook, derived by enumerating
+ * the outcomes of all remaining group matches. "Certain" means true in every
+ * remaining scenario.
+ */
+export type TeamOutlook =
+  | 'won_group' // clinched 1st in the group
+  | 'advanced' // clinched a top-2 place
+  | 'qualified_third' // clinched a best-8 third-place spot
+  | 'eliminated' // cannot qualify by any route
+  | 'alive'; // still in contention
+
+export interface TeamStatus {
+  teamId: string;
+  group: GroupLetter;
+  outlook: TeamOutlook;
+  /** Best (lowest) group finish still possible. */
+  minRank: number;
+  /** Worst (highest) group finish still possible. */
+  maxRank: number;
+  /** Set when the group finishing position is locked (minRank === maxRank). */
+  clinchedRank?: number;
+}
+
+export interface Qualification {
+  byTeam: Record<string, TeamStatus>;
+}
+
 /** The single payload the server caches and pushes to every browser. */
 export interface Snapshot {
   generatedAt: string;
@@ -139,6 +167,7 @@ export interface Snapshot {
   groupTables: GroupTable[];
   thirdPlace: ThirdPlaceRanking;
   bracket: Bracket;
+  qualification: Qualification;
   source: {
     /** Active data provider name. */
     provider: string;

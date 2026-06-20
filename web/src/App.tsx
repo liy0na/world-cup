@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { GroupLetter } from '@wc/shared';
+import { computeStandings, type Match, type Snapshot } from '@wc/shared';
 import { Bracket } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
 import { LiveScores } from './components/LiveScores';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
+import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
 import { timeAgo } from './lib/format';
 import { teamMap } from './lib/teams';
@@ -15,26 +16,57 @@ const CONNECTION: Record<ConnectionStatus, { color: string; label: string }> = {
   offline: { color: 'bg-red-500', label: 'Offline' },
 };
 
-type Tab = 'groups' | 'bracket';
+type Tab = 'groups' | 'bracket' | 'whatif';
+type WhatIf = Record<string, { h: number; a: number }>;
+
+/** Merge committed hypothetical scores over the real fixtures and recompute everything. */
+function applyWhatIf(snapshot: Snapshot, whatIf: WhatIf): Snapshot {
+  if (Object.keys(whatIf).length === 0) return snapshot;
+  const matches: Match[] = snapshot.matches.map((m) => {
+    const w = whatIf[m.id];
+    if (w && m.status !== 'finished') {
+      return { ...m, status: 'finished', homeScore: w.h, awayScore: w.a };
+    }
+    return m;
+  });
+  return { ...snapshot, matches, ...computeStandings(snapshot.teams, matches) };
+}
 
 export function App() {
   const { snapshot, status } = useLiveState();
   const [tab, setTab] = useState<Tab>('groups');
+  const [draft, setDraft] = useState<Draft>({});
+  const [whatIf, setWhatIf] = useState<WhatIf>({});
 
-  const teams = useMemo(() => (snapshot ? teamMap(snapshot) : new Map()), [snapshot]);
-  const qualifyingThirds = useMemo(
-    () => new Set<GroupLetter>(snapshot?.thirdPlace.qualifyingGroups ?? []),
-    [snapshot],
-  );
+  const view = useMemo(() => (snapshot ? applyWhatIf(snapshot, whatIf) : undefined), [snapshot, whatIf]);
+  const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
 
+  const whatIfCount = Object.keys(whatIf).length;
   const conn = CONNECTION[status];
-  const phaseLabel = snapshot
-    ? snapshot.status.phase === 'group'
-      ? `Group stage · Matchday ${snapshot.status.matchday ?? '–'}`
-      : snapshot.status.phase === 'knockout'
+  const phaseLabel = view
+    ? view.status.phase === 'group'
+      ? `Group stage · Matchday ${view.status.matchday ?? '–'}`
+      : view.status.phase === 'knockout'
         ? 'Knockout stage'
         : 'Complete'
     : '…';
+
+  const calculate = () => {
+    const next: WhatIf = {};
+    for (const [id, d] of Object.entries(draft)) {
+      const h = Number(d.h);
+      const a = Number(d.a);
+      if (d.h !== '' && d.a !== '' && Number.isFinite(h) && Number.isFinite(a) && h >= 0 && a >= 0) {
+        next[id] = { h, a };
+      }
+    }
+    setWhatIf(next);
+    setTab('groups');
+  };
+  const reset = () => {
+    setWhatIf({});
+    setDraft({});
+  };
 
   return (
     <div className="min-h-full">
@@ -44,10 +76,10 @@ export function App() {
             <div className="flex items-baseline gap-3">
               <h1 className="text-lg font-bold tracking-tight text-white">World Cup 2026</h1>
               <span className="text-xs text-slate-400">{phaseLabel}</span>
-              {snapshot && snapshot.status.liveMatchCount > 0 && (
+              {view && view.status.liveMatchCount > 0 && whatIfCount === 0 && (
                 <span className="flex items-center gap-1 text-xs text-red-400">
                   <span className="live-dot h-1.5 w-1.5 rounded-full bg-red-500" />
-                  {snapshot.status.liveMatchCount} live
+                  {view.status.liveMatchCount} live
                 </span>
               )}
             </div>
@@ -60,7 +92,11 @@ export function App() {
             </div>
           </div>
           <nav className="mt-3 flex gap-1">
-            {(['groups', 'bracket'] as Tab[]).map((t) => (
+            {([
+              ['groups', 'Groups & tables'],
+              ['bracket', 'Projected bracket'],
+              ['whatif', 'What-if'],
+            ] as [Tab, string][]).map(([t, label]) => (
               <button
                 key={t}
                 type="button"
@@ -69,7 +105,10 @@ export function App() {
                   tab === t ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {t === 'groups' ? 'Groups & tables' : 'Projected bracket'}
+                {label}
+                {t === 'whatif' && whatIfCount > 0 && (
+                  <span className="ml-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{whatIfCount}</span>
+                )}
               </button>
             ))}
           </nav>
@@ -77,36 +116,57 @@ export function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-5 space-y-6">
-        {!snapshot ? (
+        {!view ? (
           <div className="py-20 text-center text-slate-500">Loading the tournament…</div>
         ) : (
           <>
-            <LiveScores matches={snapshot.matches} teams={teams} />
+            {whatIfCount > 0 && tab !== 'whatif' && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-700/50 bg-emerald-900/20 px-4 py-2 text-sm">
+                <span className="text-emerald-200">
+                  What-if scenario active — {whatIfCount} hypothetical result{whatIfCount > 1 ? 's' : ''} applied.
+                </span>
+                <button type="button" onClick={reset} className="text-emerald-300 underline hover:text-emerald-100">
+                  Clear
+                </button>
+              </div>
+            )}
 
-            {tab === 'groups' ? (
+            {tab === 'whatif' ? (
+              <WhatIfEditor
+                matches={snapshot!.matches}
+                teams={teams}
+                draft={draft}
+                committedCount={whatIfCount}
+                onChange={setDraft}
+                onCalculate={calculate}
+                onReset={reset}
+              />
+            ) : (
+              <LiveScores matches={view.matches} teams={teams} />
+            )}
+
+            {tab === 'groups' && (
               <>
                 <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {snapshot.groupTables.map((table) => (
-                    <GroupTable
-                      key={table.group}
-                      table={table}
-                      teams={teams}
-                      qualifyingThirds={qualifyingThirds}
-                    />
+                  {view.groupTables.map((table) => (
+                    <GroupTable key={table.group} table={table} teams={teams} qualification={view.qualification} />
                   ))}
                 </section>
                 <section className="max-w-2xl">
-                  <ThirdPlaceTable ranking={snapshot.thirdPlace} teams={teams} />
+                  <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} />
                 </section>
               </>
-            ) : (
+            )}
+
+            {tab === 'bracket' && (
               <>
                 <p className="text-xs text-slate-500">
                   Projected matchups <span className="text-slate-400">as it stands</span> — group
-                  winners/runners-up are this moment's standings and the eight best third-placed teams
-                  are slotted via FIFA's official combination table. Fixed once the group stage ends.
+                  winners/runners-up are this moment's standings and the eight best third-placed teams are
+                  slotted via FIFA's official combination table. Names turn{' '}
+                  <span className="text-emerald-300">green</span> once a team has mathematically qualified.
                 </p>
-                <Bracket bracket={snapshot.bracket} teams={teams} />
+                <Bracket bracket={view.bracket} teams={teams} qualification={view.qualification} />
               </>
             )}
           </>
@@ -115,7 +175,7 @@ export function App() {
 
       <footer className="mx-auto max-w-7xl px-4 py-6 text-xs text-slate-600">
         <p>
-          Standings & bracket computed live from match results · source:{' '}
+          Standings, qualification & bracket computed live from match results · source:{' '}
           {snapshot?.source.provider ?? '—'}. Not affiliated with FIFA.
         </p>
       </footer>

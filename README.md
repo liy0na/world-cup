@@ -7,6 +7,11 @@ eight best third-placed teams.
 
 Built to run locally on Windows and deploy behind your own reverse proxy (e.g. Traefik on a VPS).
 
+Teams are coloured by **mathematically-certain** outlook — green once a team has clinched its place
+(group winner / top-2 / best-8 third), red once it can no longer qualify by any route — and a
+**what-if calculator** lets you type in scores for upcoming games and recompute the tables,
+qualification and the projected bracket from those hypothetical results.
+
 ## How it works
 
 ```text
@@ -87,6 +92,14 @@ streams cleanly through the proxy. Mount a volume at `/data` to persist the last
 - The knockout bracket is a **live projection**: mid-group-stage it treats current standings as if
   final. It is only fixed once all 72 group matches finish. Slot resolution uses FIFA's official
   combination table, so matchups are correct for any given set of qualifiers.
+- "Eliminated" / "qualified" colours mean **mathematically certain** (true in every remaining
+  result). Because eight of twelve third-placed teams advance, a team often stays "alive" (uncoloured)
+  longer than intuition suggests — it is only red once even a final-game win can't save it. Use the
+  what-if calculator to explore specific outcomes. Certainty is decided on points and head-to-head
+  results (which, per FIFA's 2026 rules, outrank overall goal difference and are already settled for
+  played games) — margin-dependent criteria are treated as still-open, so a claim is never wrong,
+  only sometimes conservative. This is why a winless side that has already lost to the teams it could
+  tie is correctly eliminated even with a game to play.
 - The free FIFA live overlay is unofficial and may break; the app degrades gracefully to the
   openfootball backbone (results appear with a short lag) and a supported paid feed can be enabled.
 - Not affiliated with FIFA.

@@ -1,7 +1,5 @@
 import {
-  buildBracket,
-  computeAllGroupTables,
-  rankThirdPlacedTeams,
+  computeStandings,
   type Match,
   type Snapshot,
   type Team,
@@ -29,12 +27,9 @@ function tournamentStatus(matches: Match[], groupPlayedMax: number): TournamentS
   };
 }
 
-/** Compute the full snapshot (tables, third-place ranking, projected bracket) from teams + matches. */
+/** Compute the full snapshot (tables, third-place ranking, projected bracket, qualification). */
 export function buildSnapshot(teams: Team[], matches: Match[], provider: string): Snapshot {
-  const groupTables = computeAllGroupTables(teams, matches);
-  const thirdPlace = rankThirdPlacedTeams(groupTables, teams);
-  const koMatches = matches.filter((m) => m.stage !== 'group');
-  const bracket = buildBracket(groupTables, thirdPlace, koMatches);
+  const { groupTables, thirdPlace, bracket, qualification } = computeStandings(teams, matches);
 
   const groupPlayedMax = Math.max(
     0,
@@ -49,6 +44,7 @@ export function buildSnapshot(teams: Team[], matches: Match[], provider: string)
     groupTables,
     thirdPlace,
     bracket,
+    qualification,
     source: {
       provider,
       live: matches.some((m) => m.status === 'live'),

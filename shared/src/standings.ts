@@ -63,9 +63,18 @@ function applyResult(row: StandingRow, gf: number, ga: number, cards?: CardTally
   row.gd = row.gf - row.ga;
 }
 
-/** Overall comparison: points, then goal difference, then goals scored. */
-function compareOverall(a: StandingRow, b: StandingRow): number {
-  return b.points - a.points || b.gd - a.gd || b.gf - a.gf;
+/**
+ * Fallback comparison once head-to-head can't separate teams: overall goal
+ * difference, then overall goals scored, then fair play, then FIFA ranking
+ * (FIFA 2026 criteria d, e, f, g).
+ */
+function compareFallback(a: StandingRow, b: StandingRow, teamsById: Map<string, Team>): number {
+  return (
+    b.gd - a.gd ||
+    b.gf - a.gf ||
+    b.fairPlay - a.fairPlay ||
+    fifaRank(teamsById, a.teamId) - fifaRank(teamsById, b.teamId)
+  );
 }
 
 /**
@@ -117,25 +126,33 @@ function cluster(rows: StandingRow[], equal: (a: StandingRow, b: StandingRow) =>
 }
 
 /**
- * Resolve order within a set of teams tied on overall points/GD/goals, applying
- * (in order) head-to-head points/GD/goals, then fair-play, then FIFA ranking.
+ * Resolve the order of teams tied on points using FIFA's 2026 procedure:
+ * apply head-to-head points/GD/goals (criteria a–c) among the tied teams; for
+ * any subgroup still level, REAPPLY a–c to just those teams; only when
+ * head-to-head cannot separate teams fall back to overall GD/goals/fair-play/
+ * FIFA ranking (criteria d–g).
  */
-function breakTie(tied: StandingRow[], matches: Match[], teamsById: Map<string, Team>): StandingRow[] {
+function resolveTie(tied: StandingRow[], matches: Match[], teamsById: Map<string, Team>): StandingRow[] {
   if (tied.length < 2) return tied;
-  const ids = new Set(tied.map((r) => r.teamId));
-  const h2h = headToHead(ids, matches);
-  const sorted = [...tied].sort((a, b) => {
-    const ha = h2h.get(a.teamId)!;
-    const hb = h2h.get(b.teamId)!;
-    return (
-      hb.pts - ha.pts ||
-      hb.gd - ha.gd ||
-      hb.gf - ha.gf ||
-      b.fairPlay - a.fairPlay ||
-      fifaRank(teamsById, a.teamId) - fifaRank(teamsById, b.teamId)
-    );
-  });
-  return sorted;
+
+  const h2h = headToHead(new Set(tied.map((r) => r.teamId)), matches);
+  const h = (id: string) => h2h.get(id)!;
+  const h2hEqual = (a: StandingRow, b: StandingRow) =>
+    h(a.teamId).pts === h(b.teamId).pts &&
+    h(a.teamId).gd === h(b.teamId).gd &&
+    h(a.teamId).gf === h(b.teamId).gf;
+
+  const sorted = [...tied].sort(
+    (a, b) => h(b.teamId).pts - h(a.teamId).pts || h(b.teamId).gd - h(a.teamId).gd || h(b.teamId).gf - h(a.teamId).gf,
+  );
+  const subClusters = cluster(sorted, h2hEqual);
+
+  // Head-to-head separated everyone.
+  if (subClusters.length === tied.length) return sorted;
+  // Head-to-head separated no-one — fall back to overall criteria.
+  if (subClusters.length === 1) return [...tied].sort((a, b) => compareFallback(a, b, teamsById));
+  // Partial: reapply a–c to each still-level subgroup, then fall back if needed.
+  return subClusters.flatMap((sub) => resolveTie(sub, matches, teamsById));
 }
 
 function fifaRank(teamsById: Map<string, Team>, teamId: string): number {
@@ -144,15 +161,11 @@ function fifaRank(teamsById: Map<string, Team>, teamId: string): number {
 
 /**
  * Compute a group's standings "as it stands", including live matches at their
- * current score. Tiebreakers follow FIFA's published 2026 order:
- *   1) points  2) goal difference  3) goals scored
- *   4) head-to-head points  5) h2h goal difference  6) h2h goals
- *   7) fair-play points  8) FIFA World Ranking.
- *
- * Note: where teams remain tied after head-to-head, FIFA re-applies the whole
- * sequence to the still-tied subgroup. We apply head-to-head once to the
- * maximal overall-tied cluster (correct for the common 2- and 3-way ties) and
- * then fall through to fair-play / FIFA ranking.
+ * current score. Tiebreakers follow FIFA's published 2026 order: teams level on
+ * points are separated FIRST by head-to-head (points, then GD, then goals in
+ * the matches between them — criteria a–c, reapplied to any still-level
+ * subgroup), and only then by overall goal difference, overall goals, fair-play
+ * and FIFA World Ranking (criteria d–g). Head-to-head outranks overall GD.
  */
 export function computeGroupTable(
   group: GroupLetter,
@@ -173,12 +186,11 @@ export function computeGroupTable(
     applyResult(away, m.awayScore!, m.homeScore!, m.awayCards);
   }
 
-  // 1) overall sort, then 2) break ties cluster by cluster.
-  const sorted = [...rows.values()].sort(compareOverall);
-  const overallEqual = (a: StandingRow, b: StandingRow) => compareOverall(a, b) === 0;
+  // 1) sort by points, then 2) resolve each points-tie via head-to-head first.
+  const sorted = [...rows.values()].sort((a, b) => b.points - a.points);
   const ordered: StandingRow[] = [];
-  for (const c of cluster(sorted, overallEqual)) {
-    ordered.push(...breakTie(c, matches, teamsById));
+  for (const c of cluster(sorted, (a, b) => a.points === b.points)) {
+    ordered.push(...resolveTie(c, matches, teamsById));
   }
 
   ordered.forEach((row, i) => (row.rank = i + 1));

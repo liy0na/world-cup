@@ -1,10 +1,11 @@
-import type { GroupLetter, GroupTable as GroupTableType } from '@wc/shared';
+import type { GroupTable as GroupTableType, Qualification } from '@wc/shared';
+import { outlookStyle } from '../lib/status';
 import type { TeamMap } from '../lib/teams';
 
 interface Props {
   table: GroupTableType;
   teams: TeamMap;
-  qualifyingThirds: Set<GroupLetter>;
+  qualification: Qualification;
 }
 
 const COLS = [
@@ -16,20 +17,14 @@ const COLS = [
   ['Pts', 'points'],
 ] as const;
 
-export function GroupTable({ table, teams, qualifyingThirds }: Props) {
-  const thirdQualifies = qualifyingThirds.has(table.group);
-
+export function GroupTable({ table, teams, qualification }: Props) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900/60">
         <h3 className="text-sm font-semibold tracking-wide text-slate-200">Group {table.group}</h3>
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-slate-500">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" /> top 2
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> 3rd
-          </span>
+          <span className="flex items-center gap-1 text-emerald-400">✓ through</span>
+          <span className="flex items-center gap-1 text-red-400">✗ out</span>
         </div>
       </div>
       <table className="w-full text-sm">
@@ -45,39 +40,33 @@ export function GroupTable({ table, teams, qualifyingThirds }: Props) {
         </thead>
         <tbody>
           {table.rows.map((row) => {
-            const team = teams.get(row.teamId);
-            const top2 = row.rank <= 2;
-            const isThird = row.rank === 3;
-            const accent = top2
-              ? 'border-emerald-500'
-              : isThird && thirdQualifies
-                ? 'border-amber-500'
-                : isThird
-                  ? 'border-amber-500/30'
-                  : 'border-transparent';
+            const t = teams.get(row.teamId);
+            const status = qualification.byTeam[row.teamId];
+            const style = outlookStyle(status?.outlook, row.rank);
             return (
-              <tr
-                key={row.teamId}
-                className="border-t border-slate-800/60 hover:bg-slate-800/30"
-              >
-                <td className={`py-1.5 pl-3 border-l-2 ${accent}`}>
+              <tr key={row.teamId} className="border-t border-slate-800/60 hover:bg-slate-800/30">
+                <td className={`py-1.5 pl-3 border-l-2 ${style.accent}`}>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-600 tabular-nums w-3 text-xs">{row.rank}</span>
-                    <span className="font-mono text-[11px] text-slate-400 w-9">{team?.code ?? row.teamId}</span>
-                    <span className="text-slate-200 truncate max-w-32">{team?.name ?? row.teamId}</span>
+                    <span className="font-mono text-[11px] text-slate-400 w-9">{t?.code ?? row.teamId}</span>
+                    <span className="text-slate-200 truncate max-w-32">{t?.name ?? row.teamId}</span>
+                    {style.marker && (
+                      <span className={`text-xs ${style.markerClass}`} title={style.label}>
+                        {style.marker}
+                      </span>
+                    )}
                   </div>
                 </td>
                 {COLS.map(([label, key]) => (
                   <td
                     key={label}
-                    className={`py-1.5 px-1.5 text-right tabular-nums ${
+                    className={`py-1.5 px-1.5 text-right tabular-nums last:pr-3 ${
                       label === 'Pts' ? 'font-semibold text-slate-100' : 'text-slate-400'
                     }`}
                   >
                     {key === 'gd' && row.gd > 0 ? `+${row.gd}` : row[key]}
                   </td>
                 ))}
-                <td className="w-2" />
               </tr>
             );
           })}
