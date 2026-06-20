@@ -1,27 +1,28 @@
-export function timeAgo(iso: string): string {
-  const ms = Date.now() - Date.parse(iso);
+import type { Lang } from './i18n';
+
+const locale = (lang: Lang) => (lang === 'fa' ? 'fa-IR' : 'en-US');
+
+/** Localised "x minutes ago" via Intl.RelativeTimeFormat (Persian numerals + wording for fa). */
+export function timeAgo(iso: string, lang: Lang): string {
+  const ms = Date.parse(iso) - Date.now();
   if (!Number.isFinite(ms)) return '';
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  const rtf = new Intl.RelativeTimeFormat(locale(lang), { numeric: 'auto' });
+  const s = Math.round(ms / 1000);
+  const abs = Math.abs(s);
+  if (abs < 60) return rtf.format(Math.round(s), 'second');
+  if (abs < 3600) return rtf.format(Math.round(s / 60), 'minute');
+  if (abs < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+  return rtf.format(Math.round(s / 86400), 'day');
 }
 
-export function kickoffLabel(iso: string): string {
+export function kickoffDay(iso: string, lang: Lang): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, {
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return d.toLocaleDateString(locale(lang), { month: 'short', day: 'numeric' });
 }
 
-export function kickoffDay(iso: string): string {
+export function kickoffLabel(iso: string, lang: Lang): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return d.toLocaleString(locale(lang), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }

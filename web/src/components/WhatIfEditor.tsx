@@ -1,7 +1,9 @@
 import type { Match } from '@wc/shared';
 import { Flag } from '../lib/flags';
 import { kickoffDay } from '../lib/format';
-import { slotCode, slotName, type TeamMap } from '../lib/teams';
+import { useI18n } from '../lib/i18n';
+import { slotDisplay } from '../lib/teamNames';
+import { slotCode, type TeamMap } from '../lib/teams';
 
 export type Draft = Record<string, { h: string; a: string }>;
 
@@ -29,7 +31,7 @@ function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, onCalculate, onReset }: Props) {
-  // Only group-stage fixtures that aren't finished can be hypothesised.
+  const { t, lang } = useI18n();
   const editable = matches
     .filter((m) => m.stage === 'group' && m.status !== 'finished' && m.group)
     .sort((a, b) => (a.group! < b.group! ? -1 : a.group! > b.group! ? 1 : Date.parse(a.kickoff) - Date.parse(b.kickoff)));
@@ -51,11 +53,8 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
   return (
     <section className="space-y-4">
       <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-        <h2 className="text-sm font-semibold text-slate-200">What-if calculator</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Enter scores for upcoming group games, then Calculate to recompute the tables, who qualifies,
-          and the projected bracket from your hypothetical results. Leave a game blank to keep it open.
-        </p>
+        <h2 className="text-sm font-semibold text-slate-200">{t('whatifTitle')}</h2>
+        <p className="mt-1 text-xs text-slate-500">{t('whatifIntro')}</p>
         <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
@@ -63,7 +62,7 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
             disabled={filled === 0}
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Calculate ({filled})
+            {t('calculate', { n: filled })}
           </button>
           {committedCount > 0 && (
             <button
@@ -71,20 +70,20 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
               onClick={onReset}
               className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
             >
-              Reset
+              {t('reset')}
             </button>
           )}
         </div>
       </div>
 
       {editable.length === 0 ? (
-        <p className="text-sm text-slate-500">No upcoming group games to project.</p>
+        <p className="text-sm text-slate-500">{t('noUpcoming')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {[...byGroup.entries()].map(([group, list]) => (
             <div key={group} className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
               <div className="px-3 py-2 border-b border-slate-800 bg-slate-900/60 text-sm font-semibold text-slate-200">
-                Group {group}
+                {t('group', { x: group })}
               </div>
               <ul className="divide-y divide-slate-800/60">
                 {list.map((m) => {
@@ -92,13 +91,12 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
                   return (
                     <li key={m.id} className="flex items-center gap-2 px-3 py-2 text-sm">
                       <span className="w-11 shrink-0 text-[10px] uppercase tracking-wider text-slate-600">
-                        {kickoffDay(m.kickoff)}
+                        {kickoffDay(m.kickoff, lang)}
                       </span>
-                      {/* Home: full name on >= sm, compact code on mobile. */}
                       <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-slate-200">
                         <span className="truncate">
                           <span className="font-mono sm:hidden">{slotCode(m.home, teams)}</span>
-                          <span className="hidden sm:inline">{slotName(m.home, teams)}</span>
+                          <span className="hidden sm:inline">{slotDisplay(m.home, teams, lang, t)}</span>
                         </span>
                         <Flag code={slotCode(m.home, teams)} />
                       </div>
@@ -109,7 +107,7 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
                         <Flag code={slotCode(m.away, teams)} />
                         <span className="truncate">
                           <span className="font-mono sm:hidden">{slotCode(m.away, teams)}</span>
-                          <span className="hidden sm:inline">{slotName(m.away, teams)}</span>
+                          <span className="hidden sm:inline">{slotDisplay(m.away, teams, lang, t)}</span>
                         </span>
                       </div>
                     </li>

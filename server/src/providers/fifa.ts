@@ -110,7 +110,7 @@ function toResult(m: FifaCalendarMatch): LiveObservation | undefined {
  * any error yields no observations and the backbone provider's data stands.
  */
 export class FifaLiveProvider implements DataProvider {
-  readonly name = 'fifa-live';
+  readonly name = 'fifa'; // supplies both live scores and finished results
   constructor(private readonly base = 'https://api.fifa.com/api/v3') {}
 
   // The schedule comes from the backbone provider; this provider only overlays results.

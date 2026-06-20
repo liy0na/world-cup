@@ -1,8 +1,10 @@
 import type { ReactElement } from 'react';
 import type { Bracket as BracketType, BracketMatch, Qualification, SlotRef } from '@wc/shared';
 import { Flag } from '../lib/flags';
+import { useI18n, type Lang } from '../lib/i18n';
 import { bracketNameClass } from '../lib/status';
-import { isResolved, slotCode, slotName, type TeamMap } from '../lib/teams';
+import { slotDisplay } from '../lib/teamNames';
+import { isResolved, slotCode, type TeamMap } from '../lib/teams';
 
 export interface KoResult {
   h?: number;
@@ -11,6 +13,8 @@ export interface KoResult {
   penA?: number;
   et?: boolean;
 }
+
+type T = (key: string, params?: Record<string, string | number>) => string;
 
 interface Props {
   bracket: BracketType;
@@ -21,14 +25,7 @@ interface Props {
   onChange: (matchId: string, patch: KoResult) => void;
 }
 
-const STAGE_LABEL: Record<BracketMatch['stage'], string> = {
-  r32: 'Round of 32',
-  r16: 'Round of 16',
-  qf: 'Quarter-final',
-  sf: 'Semi-final',
-  third: 'Third place',
-  final: 'Final',
-};
+// Compact, language-neutral round tags for the card header.
 const SHORT: Record<BracketMatch['stage'], string> = {
   r32: 'R32',
   r16: 'R16',
@@ -45,7 +42,6 @@ const parseFeeder = (s: string): number | null => {
 
 const LINE = 'bg-slate-700';
 
-/** The elbow connector joining a pair of feeder matches (left) to their parent match (right). */
 function Connector() {
   return (
     <div className="relative w-8 self-stretch shrink-0">
@@ -57,15 +53,7 @@ function Connector() {
   );
 }
 
-function Num({
-  value,
-  onChange,
-  label,
-}: {
-  value: number | undefined;
-  onChange: (v: string) => void;
-  label: string;
-}) {
+function Num({ value, onChange, label }: { value: number | undefined; onChange: (v: string) => void; label: string }) {
   return (
     <input
       type="text"
@@ -86,6 +74,8 @@ function SlotLine({
   isWinner,
   editable,
   onScore,
+  lang,
+  t,
 }: {
   slot: SlotRef;
   teams: TeamMap;
@@ -94,6 +84,8 @@ function SlotLine({
   isWinner: boolean;
   editable: boolean;
   onScore: (v: string) => void;
+  lang: Lang;
+  t: T;
 }) {
   const resolved = isResolved(slot);
   const outlook = slot.teamId ? qualification.byTeam[slot.teamId]?.outlook : undefined;
@@ -101,24 +93,20 @@ function SlotLine({
     <div className="flex items-center justify-between gap-2 px-2 py-1">
       <div className="flex items-center gap-2 min-w-0">
         {resolved ? <Flag code={slotCode(slot, teams)} /> : <span className="w-5 shrink-0" />}
-        <span className="font-mono text-[10px] text-slate-500 w-8 shrink-0">
-          {resolved ? slotCode(slot, teams) : ''}
-        </span>
+        <span className="font-mono text-[10px] text-slate-500 w-8 shrink-0">{resolved ? slotCode(slot, teams) : ''}</span>
         <span
-          className={`truncate text-[13px] ${
-            resolved ? bracketNameClass(outlook) : 'italic text-slate-500'
-          } ${isWinner ? 'font-semibold' : ''}`}
+          className={`truncate text-[13px] ${resolved ? bracketNameClass(outlook) : 'italic text-slate-500'} ${
+            isWinner ? 'font-semibold' : ''
+          }`}
         >
-          {slotName(slot, teams)}
+          {slotDisplay(slot, teams, lang, t)}
         </span>
         {isWinner && <span className="text-emerald-400 text-[11px]">✓</span>}
       </div>
       {editable && resolved ? (
         <Num value={score} onChange={onScore} label="score" />
       ) : (
-        <span className="tabular-nums text-[13px] text-slate-300">
-          {typeof score === 'number' ? score : ''}
-        </span>
+        <span className="tabular-nums text-[13px] text-slate-300">{typeof score === 'number' ? score : ''}</span>
       )}
     </div>
   );
@@ -131,6 +119,8 @@ function MatchCard({
   editable,
   result,
   onChange,
+  lang,
+  t,
 }: {
   match: BracketMatch;
   teams: TeamMap;
@@ -138,71 +128,61 @@ function MatchCard({
   editable: boolean;
   result: KoResult | undefined;
   onChange: (matchId: string, patch: KoResult) => void;
+  lang: Lang;
+  t: T;
 }) {
   const id = `m${match.matchNumber}`;
   const live = match.status === 'live';
   const bothResolved = Boolean(match.home.teamId && match.away.teamId);
-  // When editing, inputs reflect the draft; otherwise the computed match values.
   const hScore = editable ? result?.h : match.homeScore;
   const aScore = editable ? result?.a : match.awayScore;
   const level = typeof hScore === 'number' && hScore === aScore;
   const homeWins = match.winnerTeamId && match.winnerTeamId === match.home.teamId;
   const awayWins = match.winnerTeamId && match.winnerTeamId === match.away.teamId;
+  const slotProps = { teams, qualification, lang, t };
 
   return (
-    <div
-      className={`w-52 shrink-0 rounded-lg border bg-slate-900/60 ${
-        live ? 'border-red-500/50' : 'border-slate-800'
-      }`}
-    >
+    <div className={`w-52 shrink-0 rounded-lg border bg-slate-900/60 ${live ? 'border-red-500/50' : 'border-slate-800'}`}>
       <div className="flex items-center justify-between px-2 pt-1 text-[9px] uppercase tracking-wider text-slate-600">
         <span>
           {SHORT[match.stage]} · M{match.matchNumber}
         </span>
         <span className="flex items-center gap-1">
-          {match.afterExtraTime && <span className="text-slate-500">a.e.t.</span>}
-          {live && <span className="text-red-400">live</span>}
+          {match.afterExtraTime && <span className="text-slate-500">{t('aet')}</span>}
+          {live && <span className="text-red-400">{t('live')}</span>}
         </span>
       </div>
       <SlotLine
         slot={match.home}
-        teams={teams}
-        qualification={qualification}
         score={hScore}
         isWinner={Boolean(homeWins)}
         editable={editable && bothResolved}
         onScore={(v) => onChange(id, { h: v === '' ? undefined : Number(v) })}
+        {...slotProps}
       />
       <div className="border-t border-slate-800/60" />
       <SlotLine
         slot={match.away}
-        teams={teams}
-        qualification={qualification}
         score={aScore}
         isWinner={Boolean(awayWins)}
         editable={editable && bothResolved}
         onScore={(v) => onChange(id, { a: v === '' ? undefined : Number(v) })}
+        {...slotProps}
       />
-      {/* Penalty + extra-time controls appear when a knockout match is level. */}
       {editable && bothResolved && level ? (
         <div className="flex items-center gap-2 border-t border-slate-800/60 px-2 py-1 text-[11px]">
-          <span className="text-slate-500">pens</span>
+          <span className="text-slate-500">{t('pens')}</span>
           <Num value={result?.penH} onChange={(v) => onChange(id, { penH: v === '' ? undefined : Number(v) })} label="home penalties" />
           <span className="text-slate-600">–</span>
           <Num value={result?.penA} onChange={(v) => onChange(id, { penA: v === '' ? undefined : Number(v) })} label="away penalties" />
-          <label className="ml-auto flex items-center gap-1 text-slate-500">
-            <input
-              type="checkbox"
-              checked={Boolean(result?.et)}
-              onChange={(e) => onChange(id, { et: e.target.checked })}
-              className="accent-emerald-500"
-            />
-            a.e.t.
+          <label className="ms-auto flex items-center gap-1 text-slate-500">
+            <input type="checkbox" checked={Boolean(result?.et)} onChange={(e) => onChange(id, { et: e.target.checked })} className="accent-emerald-500" />
+            {t('aet')}
           </label>
         </div>
       ) : !editable && match.penalties ? (
-        <div className="border-t border-slate-800/60 px-2 py-0.5 text-right text-[10px] text-slate-500">
-          pens {match.penalties.home}–{match.penalties.away}
+        <div className="border-t border-slate-800/60 px-2 py-0.5 text-end text-[10px] text-slate-500">
+          {t('pens')} {match.penalties.home}–{match.penalties.away}
         </div>
       ) : null}
     </div>
@@ -210,6 +190,7 @@ function MatchCard({
 }
 
 export function Bracket({ bracket, teams, qualification, editable, results, onChange }: Props) {
+  const { t, lang } = useI18n();
   const all = [...bracket.r32, ...bracket.r16, ...bracket.qf, ...bracket.sf, ...bracket.final, ...bracket.third];
   const byNumber = new Map(all.map((m) => [m.matchNumber, m]));
 
@@ -219,35 +200,26 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
     return h !== null && a !== null ? [h, a] : [];
   };
 
-  const cardProps = { teams, qualification, editable, onChange };
   const third = bracket.third[0];
-
   const card = (m: BracketMatch) => (
-    <MatchCard match={m} result={results[`m${m.matchNumber}`]} {...cardProps} />
+    <MatchCard match={m} result={results[`m${m.matchNumber}`]} teams={teams} qualification={qualification} editable={editable} onChange={onChange} lang={lang} t={t} />
   );
 
-  // Recursive layout: a match sits to the right of its two feeder sub-trees,
-  // vertically centred between them, with an elbow connector.
   const Node = ({ n }: { n: number }): ReactElement | null => {
     const m = byNumber.get(n);
     if (!m) return null;
     const fds = feeders(m);
     if (fds.length < 2) return <div className="my-1.5">{card(m)}</div>;
 
-    // The final keeps the third-place play-off tucked directly beneath it (the
-    // connector still points at the final; the play-off is absolutely placed so
-    // it doesn't shift the final off-centre).
     const right =
       n === 104 && third ? (
         <div className="relative">
           <div className="absolute bottom-full left-0 w-52 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">
-            Final
+            {t('finalHeading')}
           </div>
           {card(m)}
           <div className="absolute left-0 top-full w-52 pt-6">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">
-              Third-place play-off
-            </div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">{t('thirdPlayoff')}</div>
             {card(third)}
           </div>
         </div>
@@ -267,17 +239,17 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
     );
   };
 
-  // 'final' is labelled inline (amber) next to its card, so it's omitted here.
   const rounds: BracketMatch['stage'][] = ['r32', 'r16', 'qf', 'sf'];
 
+  // Force LTR: the tree layout + connectors are built left-to-right; Persian
+  // team names still render correctly inside the cards.
   return (
-    <section className="overflow-x-auto pb-4">
+    <section dir="ltr" className="overflow-x-auto pb-4">
       <div className="min-w-max">
-        {/* Round headers aligned to the columns (card 13rem + connector 2rem pitch). */}
         <div className="mb-2 flex gap-8">
           {rounds.map((s) => (
             <div key={s} className="w-52 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              {STAGE_LABEL[s]}
+              {t(`round.${s}`)}
             </div>
           ))}
         </div>
