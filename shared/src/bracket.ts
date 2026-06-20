@@ -65,7 +65,55 @@ function toBracketMatch(def: KoMatchDef, ctx: BuildContext): BracketMatch {
     status: actual?.status,
     homeScore: actual?.homeScore,
     awayScore: actual?.awayScore,
+    afterExtraTime: actual?.afterExtraTime,
+    penalties: actual?.penalties,
   };
+}
+
+/** Where each match's winner ("W##") and loser ("L##") flow to in a later round. */
+interface Ref {
+  token: string;
+  toMatch: number;
+  side: 'home' | 'away';
+}
+const REFS: Ref[] = KNOCKOUT_MATCHES.flatMap((def) =>
+  (['home', 'away'] as const).flatMap((side) => {
+    const src = def[side];
+    if (src.type === 'matchWinner') return [{ token: `W${src.match}`, toMatch: def.matchNumber, side }];
+    if (src.type === 'matchLoser') return [{ token: `L${src.match}`, toMatch: def.matchNumber, side }];
+    return [];
+  }),
+);
+
+/** Decide a knockout match: higher score wins; if level, the penalty score decides. */
+function decide(m: BracketMatch): { winner?: string; loser?: string } {
+  const h = m.home.teamId;
+  const a = m.away.teamId;
+  if (!h || !a || m.status !== 'finished' || typeof m.homeScore !== 'number' || typeof m.awayScore !== 'number') {
+    return {};
+  }
+  if (m.homeScore > m.awayScore) return { winner: h, loser: a };
+  if (m.awayScore > m.homeScore) return { winner: a, loser: h };
+  const p = m.penalties;
+  if (p && p.home !== p.away) return p.home > p.away ? { winner: h, loser: a } : { winner: a, loser: h };
+  return {}; // level and no penalty result yet
+}
+
+/**
+ * Walk the bracket in match order, decide each finished match (extra time /
+ * penalties included) and flow the winner — and, for the third-place match, the
+ * loser — into the slot that references it in a later round.
+ */
+function propagateWinners(byNumber: Map<number, BracketMatch>): void {
+  for (const m of [...byNumber.values()].sort((x, y) => x.matchNumber - y.matchNumber)) {
+    const { winner, loser } = decide(m);
+    m.winnerTeamId = winner;
+    m.loserTeamId = loser;
+    for (const ref of REFS) {
+      if (ref.token === `W${m.matchNumber}` && winner) byNumber.get(ref.toMatch)![ref.side].teamId = winner;
+      if (ref.token === `L${m.matchNumber}` && loser) byNumber.get(ref.toMatch)![ref.side].teamId = loser;
+    }
+  }
 }
 
 /**
@@ -101,6 +149,11 @@ export function buildBracket(
   }
 
   const matches = KNOCKOUT_MATCHES.map((def) => toBracketMatch(def, ctx));
+
+  // Flow decided results forward: R32 winners into the R16, and so on up to the
+  // final, plus the semi-final losers into the third-place match.
+  propagateWinners(new Map(matches.map((m) => [m.matchNumber, m])));
+
   const byStage = (stage: BracketMatch['stage']) =>
     matches.filter((m) => m.stage === stage);
 

@@ -2,8 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { buildBracket } from '../src/bracket';
 import { KNOCKOUT_MATCHES } from '../src/data/bracketStructure';
 import { THIRD_PLACE_COMBINATIONS } from '../src/data/thirdPlaceCombinations';
-import type { GroupLetter, ThirdPlaceRanking } from '../src/types';
+import type { GroupLetter, Match, ThirdPlaceRanking } from '../src/types';
 import { tableInOrder } from './helpers';
+
+/** A finished knockout result keyed only by match number (overlaid by buildBracket). */
+function koResult(
+  matchNumber: number,
+  homeScore: number,
+  awayScore: number,
+  opts: { penalties?: { home: number; away: number }; afterExtraTime?: boolean } = {},
+): Match {
+  return {
+    id: `m${matchNumber}`,
+    stage: 'r32',
+    matchNumber,
+    kickoff: '2026-06-28T00:00:00Z',
+    status: 'finished',
+    home: { source: '', label: '' },
+    away: { source: '', label: '' },
+    homeScore,
+    awayScore,
+    penalties: opts.penalties,
+    afterExtraTime: opts.afterExtraTime,
+  };
+}
 
 const LETTERS: GroupLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
@@ -88,6 +110,35 @@ describe('buildBracket — later rounds and edge cases', () => {
     const m74 = find(bracket, 74);
     expect(m74.away.teamId).toBeUndefined();
     expect(m74.away.label).toBe('3rd A/B/C/D/F');
+  });
+
+  it('propagates a Round-of-32 winner into the Round of 16', () => {
+    // M73 = Runner-up A (A2) vs Runner-up B (B2); its winner feeds M90's home slot.
+    const bracket = buildBracket(tables, ranking(['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']), [
+      koResult(73, 2, 0),
+    ]);
+    expect(find(bracket, 73).winnerTeamId).toBe('A2');
+    expect(find(bracket, 90).home.teamId).toBe('A2'); // resolved team flows into the next round
+  });
+
+  it('decides a level match on penalties and propagates the shoot-out winner', () => {
+    // M74 = Winner E (E1) vs 3rd C (C3); level after 120, E win on penalties.
+    const bracket = buildBracket(tables, ranking(['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']), [
+      koResult(74, 1, 1, { afterExtraTime: true, penalties: { home: 4, away: 3 } }),
+    ]);
+    expect(find(bracket, 74).winnerTeamId).toBe('E1');
+    expect(find(bracket, 89).home.teamId).toBe('E1'); // M89 home = Winner M74
+  });
+
+  it('propagates a full set of results to the final and third-place match', () => {
+    const allHomeWins: Match[] = [];
+    for (let n = 73; n <= 104; n++) allHomeWins.push(koResult(n, 1, 0));
+    const bracket = buildBracket(tables, ranking(['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']), allHomeWins);
+    expect(find(bracket, 104).home.teamId).toBeDefined(); // final has two real teams
+    expect(find(bracket, 104).away.teamId).toBeDefined();
+    expect(find(bracket, 104).winnerTeamId).toBeDefined(); // a champion
+    expect(find(bracket, 103).home.teamId).toBeDefined(); // third place fed by SF losers
+    expect(find(bracket, 103).away.teamId).toBeDefined();
   });
 
   it('produces the full 32-match knockout structure', () => {

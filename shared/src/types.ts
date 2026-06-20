@@ -62,6 +62,10 @@ export interface Match {
   awayScore?: number;
   homeCards?: CardTally;
   awayCards?: CardTally;
+  /** Knockout only: score is after extra time (120'). Display/labeling. */
+  afterExtraTime?: boolean;
+  /** Knockout only: penalty-shootout score, used to decide a level match. */
+  penalties?: { home: number; away: number };
 }
 
 export interface StandingRow {
@@ -112,6 +116,11 @@ export interface BracketMatch {
   status?: MatchStatus;
   homeScore?: number;
   awayScore?: number;
+  afterExtraTime?: boolean;
+  penalties?: { home: number; away: number };
+  /** Resolved winner/loser team ids once the match is decided (incl. penalties). */
+  winnerTeamId?: string;
+  loserTeamId?: string;
 }
 
 export interface Bracket {

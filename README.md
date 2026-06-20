@@ -12,6 +12,11 @@ Teams are coloured by **mathematically-certain** outlook — green once a team h
 **what-if calculator** lets you type in scores for upcoming games and recompute the tables,
 qualification and the projected bracket from those hypothetical results.
 
+The bracket is a real single-elimination tree with connector lines (Round of 32 → Final + a
+separate third-place match). In edit mode you can enter **knockout scores — including extra time
+and penalty shoot-outs** — and the winners advance up the tree automatically (the same path live
+results will flow through once wired to a feed).
+
 ## How it works
 
 ```text

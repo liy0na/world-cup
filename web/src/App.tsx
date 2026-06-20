@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { computeStandings, type Match, type Snapshot } from '@wc/shared';
-import { Bracket } from './components/Bracket';
+import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
 import { LiveScores } from './components/LiveScores';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
@@ -17,17 +17,22 @@ const CONNECTION: Record<ConnectionStatus, { color: string; label: string }> = {
 };
 
 type Tab = 'groups' | 'bracket' | 'whatif';
-type WhatIf = Record<string, { h: number; a: number }>;
+type Scenario = Record<string, KoResult>;
 
-/** Merge committed hypothetical scores over the real fixtures and recompute everything. */
-function applyWhatIf(snapshot: Snapshot, whatIf: WhatIf): Snapshot {
-  if (Object.keys(whatIf).length === 0) return snapshot;
+/** Merge hypothetical group + knockout results over the real fixtures and recompute. */
+function applyScenario(snapshot: Snapshot, scenario: Scenario): Snapshot {
+  if (Object.keys(scenario).length === 0) return snapshot;
   const matches: Match[] = snapshot.matches.map((m) => {
-    const w = whatIf[m.id];
-    if (w && m.status !== 'finished') {
-      return { ...m, status: 'finished', homeScore: w.h, awayScore: w.a };
-    }
-    return m;
+    const w = scenario[m.id];
+    if (!w || typeof w.h !== 'number' || typeof w.a !== 'number') return m; // unset / partial
+    return {
+      ...m,
+      status: 'finished',
+      homeScore: w.h,
+      awayScore: w.a,
+      afterExtraTime: w.et,
+      penalties: typeof w.penH === 'number' && typeof w.penA === 'number' ? { home: w.penH, away: w.penA } : undefined,
+    };
   });
   return { ...snapshot, matches, ...computeStandings(snapshot.teams, matches) };
 }
@@ -36,12 +41,15 @@ export function App() {
   const { snapshot, status } = useLiveState();
   const [tab, setTab] = useState<Tab>('groups');
   const [draft, setDraft] = useState<Draft>({});
-  const [whatIf, setWhatIf] = useState<WhatIf>({});
+  const [groupWhatIf, setGroupWhatIf] = useState<Scenario>({}); // committed via Calculate
+  const [koResults, setKoResults] = useState<Scenario>({}); // applied immediately
+  const [bracketEdit, setBracketEdit] = useState(false);
 
-  const view = useMemo(() => (snapshot ? applyWhatIf(snapshot, whatIf) : undefined), [snapshot, whatIf]);
+  const scenario = useMemo(() => ({ ...groupWhatIf, ...koResults }), [groupWhatIf, koResults]);
+  const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
 
-  const whatIfCount = Object.keys(whatIf).length;
+  const scenarioCount = Object.keys(scenario).length;
   const conn = CONNECTION[status];
   const phaseLabel = view
     ? view.status.phase === 'group'
@@ -52,7 +60,7 @@ export function App() {
     : '…';
 
   const calculate = () => {
-    const next: WhatIf = {};
+    const next: Scenario = {};
     for (const [id, d] of Object.entries(draft)) {
       const h = Number(d.h);
       const a = Number(d.a);
@@ -60,12 +68,25 @@ export function App() {
         next[id] = { h, a };
       }
     }
-    setWhatIf(next);
+    setGroupWhatIf(next);
     setTab('groups');
   };
   const reset = () => {
-    setWhatIf({});
+    setGroupWhatIf({});
+    setKoResults({});
     setDraft({});
+  };
+
+  const setKo = (matchId: string, patch: KoResult) => {
+    setKoResults((prev) => {
+      const next = { ...(prev[matchId] ?? {}), ...patch };
+      const empty =
+        next.h == null && next.a == null && next.penH == null && next.penA == null && !next.et;
+      const copy = { ...prev };
+      if (empty) delete copy[matchId];
+      else copy[matchId] = next;
+      return copy;
+    });
   };
 
   return (
@@ -76,7 +97,7 @@ export function App() {
             <div className="flex items-baseline gap-3">
               <h1 className="text-lg font-bold tracking-tight text-white">World Cup 2026</h1>
               <span className="text-xs text-slate-400">{phaseLabel}</span>
-              {view && view.status.liveMatchCount > 0 && whatIfCount === 0 && (
+              {view && view.status.liveMatchCount > 0 && scenarioCount === 0 && (
                 <span className="flex items-center gap-1 text-xs text-red-400">
                   <span className="live-dot h-1.5 w-1.5 rounded-full bg-red-500" />
                   {view.status.liveMatchCount} live
@@ -106,8 +127,8 @@ export function App() {
                 }`}
               >
                 {label}
-                {t === 'whatif' && whatIfCount > 0 && (
-                  <span className="ml-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{whatIfCount}</span>
+                {t === 'whatif' && scenarioCount > 0 && (
+                  <span className="ml-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{scenarioCount}</span>
                 )}
               </button>
             ))}
@@ -120,10 +141,10 @@ export function App() {
           <div className="py-20 text-center text-slate-500">Loading the tournament…</div>
         ) : (
           <>
-            {whatIfCount > 0 && tab !== 'whatif' && (
+            {scenarioCount > 0 && tab !== 'whatif' && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-700/50 bg-emerald-900/20 px-4 py-2 text-sm">
                 <span className="text-emerald-200">
-                  What-if scenario active — {whatIfCount} hypothetical result{whatIfCount > 1 ? 's' : ''} applied.
+                  What-if scenario active — {scenarioCount} hypothetical result{scenarioCount > 1 ? 's' : ''} applied.
                 </span>
                 <button type="button" onClick={reset} className="text-emerald-300 underline hover:text-emerald-100">
                   Clear
@@ -136,7 +157,7 @@ export function App() {
                 matches={snapshot!.matches}
                 teams={teams}
                 draft={draft}
-                committedCount={whatIfCount}
+                committedCount={Object.keys(groupWhatIf).length}
                 onChange={setDraft}
                 onCalculate={calculate}
                 onReset={reset}
@@ -160,13 +181,31 @@ export function App() {
 
             {tab === 'bracket' && (
               <>
-                <p className="text-xs text-slate-500">
-                  Projected matchups <span className="text-slate-400">as it stands</span> — group
-                  winners/runners-up are this moment's standings and the eight best third-placed teams are
-                  slotted via FIFA's official combination table. Names turn{' '}
-                  <span className="text-emerald-300">green</span> once a team has mathematically qualified.
-                </p>
-                <Bracket bracket={view.bracket} teams={teams} qualification={view.qualification} />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-3xl text-xs text-slate-500">
+                    Projected matchups <span className="text-slate-400">as it stands</span> — winners/runners-up
+                    are current standings, the eight best thirds are slotted via FIFA's combination table, and
+                    names turn <span className="text-emerald-300">green</span> once a team has qualified. Turn on
+                    edit mode to enter knockout scores (with extra time / penalties) and watch winners advance.
+                  </p>
+                  <label className="flex shrink-0 items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={bracketEdit}
+                      onChange={(e) => setBracketEdit(e.target.checked)}
+                      className="accent-emerald-500"
+                    />
+                    Edit results
+                  </label>
+                </div>
+                <Bracket
+                  bracket={view.bracket}
+                  teams={teams}
+                  qualification={view.qualification}
+                  editable={bracketEdit}
+                  results={koResults}
+                  onChange={setKo}
+                />
               </>
             )}
           </>
