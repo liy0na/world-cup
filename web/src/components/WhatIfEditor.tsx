@@ -91,20 +91,27 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
                   const d = draft[m.id] ?? { h: '', a: '' };
                   return (
                     <li key={m.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                      <span className="w-12 shrink-0 text-[10px] uppercase tracking-wider text-slate-600">
+                      <span className="w-11 shrink-0 text-[10px] uppercase tracking-wider text-slate-600">
                         {kickoffDay(m.kickoff)}
                       </span>
-                      <span className="flex flex-1 items-center justify-end gap-1.5 truncate text-slate-200">
-                        {slotName(m.home, teams)}
+                      {/* Home: full name on >= sm, compact code on mobile. */}
+                      <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-slate-200">
+                        <span className="truncate">
+                          <span className="font-mono sm:hidden">{slotCode(m.home, teams)}</span>
+                          <span className="hidden sm:inline">{slotName(m.home, teams)}</span>
+                        </span>
                         <Flag code={slotCode(m.home, teams)} />
-                      </span>
+                      </div>
                       <ScoreInput value={d.h} onChange={(v) => set(m.id, 'h', v)} />
                       <span className="text-slate-600">–</span>
                       <ScoreInput value={d.a} onChange={(v) => set(m.id, 'a', v)} />
-                      <span className="flex flex-1 items-center gap-1.5 truncate text-slate-200">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5 text-slate-200">
                         <Flag code={slotCode(m.away, teams)} />
-                        {slotName(m.away, teams)}
-                      </span>
+                        <span className="truncate">
+                          <span className="font-mono sm:hidden">{slotCode(m.away, teams)}</span>
+                          <span className="hidden sm:inline">{slotName(m.away, teams)}</span>
+                        </span>
+                      </div>
                     </li>
                   );
                 })}

@@ -1,5 +1,7 @@
 # World Cup 2026 — live tables & projected knockout bracket
 
+**🔴 Live: <https://world-cup-2026.team>**
+
 A self-hosted dashboard that fetches FIFA World Cup 2026 scores and live scores, keeps the 12 group
 tables updated in real time, and continuously recomputes the **projected knockout bracket "as it
 stands"** — using the exact 2026 tiebreakers and FIFA's official Annex C combination table for the
