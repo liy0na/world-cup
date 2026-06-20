@@ -1,0 +1,11 @@
+# Caddy auto-provisions and renews Let's Encrypt TLS for $DOMAIN.
+# Set DOMAIN in deploy/.env (e.g. DOMAIN=world-cup-2026.team).
+
+{$DOMAIN} {
+	reverse_proxy world-cup:8787
+}
+
+# Redirect www -> apex (Caddy still gets a cert for www).
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

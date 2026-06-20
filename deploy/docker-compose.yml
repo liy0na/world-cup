@@ -1,0 +1,38 @@
+# Production deploy: the app behind Caddy (automatic HTTPS). No Traefik needed.
+#   cd deploy && echo "DOMAIN=your-domain.tld" > .env
+#   sudo docker compose up -d
+services:
+  world-cup:
+    image: ghcr.io/liy0na/world-cup:latest
+    restart: unless-stopped
+    init: true
+    environment:
+      - PORT=8787
+      - FIFA_LIVE=true
+    volumes:
+      - wc-data:/data # persists the last-good snapshot
+    networks: [web]
+    # No published ports — only Caddy (same network) reaches it.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:?set DOMAIN in deploy/.env}
+    ports:
+      - '80:80' # required for the Let's Encrypt HTTP challenge + http->https redirect
+      - '443:443'
+      - '443:443/udp' # HTTP/3 (optional)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # stores the issued certificates (keep this volume!)
+      - caddy-config:/config
+    networks: [web]
+
+networks:
+  web:
+
+volumes:
+  wc-data:
+  caddy-data:
+  caddy-config:
