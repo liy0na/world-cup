@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import fastifyStatic from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 import type { SnapshotCache } from '../core/cache';
 
@@ -55,7 +56,6 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
 
   // Serve the built SPA (when present) with history-API fallback.
   if (existsSync(deps.webDist)) {
-    const fastifyStatic = (await import('@fastify/static')).default;
     await app.register(fastifyStatic, { root: deps.webDist, wildcard: false });
     app.setNotFoundHandler((req, reply) => {
       if (req.method === 'GET' && !req.url.startsWith('/api')) {

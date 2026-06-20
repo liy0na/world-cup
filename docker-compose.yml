@@ -1,0 +1,30 @@
+# Deploy the published image. On your server:
+#   docker compose pull && docker compose up -d
+services:
+  world-cup:
+    image: ghcr.io/liy0na/world-cup:latest
+    restart: unless-stopped
+    init: true # proper SIGTERM handling for graceful shutdown
+    environment:
+      - PORT=8787
+      - FIFA_LIVE=true # set false to disable the unofficial live overlay
+    volumes:
+      - wc-data:/data # persists the last-good snapshot across restarts
+    # Direct port mapping. Remove this when fronting the app with Traefik.
+    ports:
+      - '8787:8787'
+
+    # --- Traefik (uncomment, set your host, and remove the `ports:` block above) ---
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.worldcup.rule=Host(`worldcup.example.com`)
+    #   - traefik.http.routers.worldcup.entrypoints=websecure
+    #   - traefik.http.routers.worldcup.tls.certresolver=letsencrypt
+    #   - traefik.http.services.worldcup.loadbalancer.server.port=8787
+    # networks: [traefik]
+# networks:
+#   traefik:
+#     external: true
+
+volumes:
+  wc-data:

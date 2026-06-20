@@ -80,17 +80,36 @@ npm start          # http://localhost:8787
 Config is via env (see [.env.example](.env.example)). Notable: `PORT`, `DATA_DIR` (snapshot location),
 `FIFA_LIVE`, and the poll cadences.
 
-## Deploy (Docker, behind Traefik)
+## Deploy (Docker)
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) typechecks, tests and builds on every
+push, then publishes a multi-tag image to the GitHub Container Registry. **Pull and run it on your
+server** — no build needed:
 
 ```bash
-docker build -t world-cup .
-docker run -p 8787:8787 -v wc-data:/data world-cup
+docker pull ghcr.io/liy0na/world-cup:latest
+docker run -d -p 8787:8787 -v wc-data:/data ghcr.io/liy0na/world-cup:latest
+# or: docker compose up -d   (see docker-compose.yml)
 ```
 
-The image is a single self-contained server bundle + the built SPA, listening on one HTTP port
-(`PORT`, default 8787) — point one Traefik router/service at it and let Traefik terminate TLS. The
-SSE endpoint sets `Cache-Control: no-cache` / `X-Accel-Buffering: no` and emits heartbeats so it
-streams cleanly through the proxy. Mount a volume at `/data` to persist the last-good snapshot.
+The image is a single self-contained CommonJS server bundle + the built SPA (Fastify, the engine and
+the seed data are all inlined — no `node_modules` at runtime), runs as a non-root user with a
+`/api/health` HEALTHCHECK, and listens on one HTTP port (`PORT`, default 8787). Behind **Traefik**,
+point one router/service at it and let Traefik terminate TLS (labels are templated in
+[`docker-compose.yml`](docker-compose.yml)); the SSE endpoint sets `Cache-Control: no-cache` /
+`X-Accel-Buffering: no` and emits heartbeats so it streams cleanly through the proxy. Mount a volume
+at `/data` to persist the last-good snapshot.
+
+Build it yourself instead with `docker build -t world-cup .`.
+
+> First publish only: the GHCR package starts private — make it public once (repo → Packages →
+> *world-cup* → Package settings → Change visibility → Public) so anyone can `docker pull` it.
+
+### Fork it
+
+Anyone can fork and get the same pipeline for free: the CI publishes to
+`ghcr.io/<your-account>/world-cup` automatically (the owner is resolved at build time), so your fork
+builds and ships its own image with no changes.
 
 ## Caveats
 
