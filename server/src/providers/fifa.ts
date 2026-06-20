@@ -22,10 +22,11 @@ interface FifaTeam {
 interface FifaMatch {
   IdCompetition?: string;
   IdSeason?: string;
-  MatchStatus?: number; // FIFA: 0 scheduled, 3 live, 0/... finished — treated loosely
+  MatchStatus?: number;
   MatchTime?: string;
-  Home?: FifaTeam | null;
-  Away?: FifaTeam | null;
+  // The live feed uses HomeTeam/AwayTeam (not Home/Away).
+  HomeTeam?: FifaTeam | null;
+  AwayTeam?: FifaTeam | null;
 }
 interface FifaLiveResponse {
   Results?: FifaMatch[];
@@ -33,8 +34,8 @@ interface FifaLiveResponse {
 
 function pickName(team: FifaTeam | null | undefined): string | undefined {
   if (!team) return undefined;
-  const localised = team.TeamName?.find((n) => n.Locale === 'en-GB' || n.Locale === 'en') ?? team.TeamName?.[0];
-  return localised?.Description ?? team.ShortClubName ?? team.Abbreviation;
+  const en = team.TeamName?.find((n) => n.Locale?.toLowerCase().startsWith('en')) ?? team.TeamName?.[0];
+  return en?.Description ?? team.ShortClubName ?? team.Abbreviation;
 }
 
 function parseMinute(matchTime?: string): number | undefined {
@@ -46,14 +47,14 @@ function parseMinute(matchTime?: string): number | undefined {
 function toObservation(match: FifaMatch): LiveObservation | undefined {
   if (match.IdCompetition && match.IdCompetition !== WORLD_CUP_COMPETITION) return undefined;
   if (match.IdSeason && match.IdSeason !== WORLD_CUP_SEASON_2026) return undefined;
-  const homeName = pickName(match.Home);
-  const awayName = pickName(match.Away);
+  const homeName = pickName(match.HomeTeam);
+  const awayName = pickName(match.AwayTeam);
   if (!homeName || !awayName) return undefined;
   return {
     homeName,
     awayName,
-    homeScore: match.Home?.Score ?? undefined,
-    awayScore: match.Away?.Score ?? undefined,
+    homeScore: match.HomeTeam?.Score ?? undefined,
+    awayScore: match.AwayTeam?.Score ?? undefined,
     minute: parseMinute(match.MatchTime),
   };
 }
