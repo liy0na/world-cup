@@ -220,6 +220,11 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
   };
 
   const cardProps = { teams, qualification, editable, onChange };
+  const third = bracket.third[0];
+
+  const card = (m: BracketMatch) => (
+    <MatchCard match={m} result={results[`m${m.matchNumber}`]} {...cardProps} />
+  );
 
   // Recursive layout: a match sits to the right of its two feeder sub-trees,
   // vertically centred between them, with an elbow connector.
@@ -227,13 +232,29 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
     const m = byNumber.get(n);
     if (!m) return null;
     const fds = feeders(m);
-    if (fds.length < 2) {
-      return (
-        <div className="my-1.5">
-          <MatchCard match={m} result={results[`m${m.matchNumber}`]} {...cardProps} />
+    if (fds.length < 2) return <div className="my-1.5">{card(m)}</div>;
+
+    // The final keeps the third-place play-off tucked directly beneath it (the
+    // connector still points at the final; the play-off is absolutely placed so
+    // it doesn't shift the final off-centre).
+    const right =
+      n === 104 && third ? (
+        <div className="relative">
+          <div className="absolute bottom-full left-0 w-52 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">
+            Final
+          </div>
+          {card(m)}
+          <div className="absolute left-0 top-full w-52 pt-6">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500/80">
+              Third-place play-off
+            </div>
+            {card(third)}
+          </div>
         </div>
+      ) : (
+        card(m)
       );
-    }
+
     return (
       <div className="flex items-center">
         <div className="flex flex-col justify-center">
@@ -241,13 +262,13 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
           <Node n={fds[1]!} />
         </div>
         <Connector />
-        <MatchCard match={m} result={results[`m${m.matchNumber}`]} {...cardProps} />
+        {right}
       </div>
     );
   };
 
-  const rounds: BracketMatch['stage'][] = ['r32', 'r16', 'qf', 'sf', 'final'];
-  const third = bracket.third[0];
+  // 'final' is labelled inline (amber) next to its card, so it's omitted here.
+  const rounds: BracketMatch['stage'][] = ['r32', 'r16', 'qf', 'sf'];
 
   return (
     <section className="overflow-x-auto pb-4">
@@ -261,14 +282,6 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
           ))}
         </div>
         <Node n={104} />
-        {third && (
-          <div className="mt-6 flex items-center gap-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              {STAGE_LABEL.third}
-            </span>
-            <MatchCard match={third} result={results[`m${third.matchNumber}`]} {...cardProps} />
-          </div>
-        )}
       </div>
     </section>
   );
