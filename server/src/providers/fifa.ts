@@ -53,6 +53,8 @@ function toObservation(match: FifaMatch): LiveObservation | undefined {
   return {
     homeName,
     awayName,
+    homeCode: match.HomeTeam?.Abbreviation,
+    awayCode: match.AwayTeam?.Abbreviation,
     homeScore: match.HomeTeam?.Score ?? undefined,
     awayScore: match.AwayTeam?.Score ?? undefined,
     minute: parseMinute(match.MatchTime),

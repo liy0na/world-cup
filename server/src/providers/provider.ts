@@ -13,6 +13,9 @@ export interface Schedule {
 export interface LiveObservation {
   homeName: string;
   awayName: string;
+  /** FIFA 3-letter codes (e.g. CIV) — the reliable join key across name spellings. */
+  homeCode?: string;
+  awayCode?: string;
   homeScore?: number;
   awayScore?: number;
   minute?: number;

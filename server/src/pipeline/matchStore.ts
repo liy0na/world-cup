@@ -10,9 +10,13 @@ import { normaliseName, type LiveObservation, type Schedule } from '../providers
 export function mergeLive(schedule: Schedule, live: LiveObservation[]): Match[] {
   if (live.length === 0) return schedule.matches;
 
-  // normalised team name -> teamId, built from the backbone roster.
+  // Resolve a live team by its FIFA 3-letter code first (robust across name
+  // spellings, e.g. "Côte d'Ivoire" vs "Ivory Coast"), then by normalised name.
+  const idSet = new Set(schedule.teams.map((t) => t.id));
   const nameToId = new Map<string, string>();
   for (const t of schedule.teams) nameToId.set(normaliseName(t.name), t.id);
+  const resolve = (code: string | undefined, name: string): string | undefined =>
+    (code && idSet.has(code) ? code : undefined) ?? nameToId.get(normaliseName(name));
 
   // index of not-finished fixtures by unordered team-id pair.
   const pairKey = (a: string, b: string) => [a, b].sort().join('|');
@@ -24,8 +28,8 @@ export function mergeLive(schedule: Schedule, live: LiveObservation[]): Match[] 
 
   const overlay = new Map<string, Partial<Match>>();
   for (const obs of live) {
-    const hId = nameToId.get(normaliseName(obs.homeName));
-    const aId = nameToId.get(normaliseName(obs.awayName));
+    const hId = resolve(obs.homeCode, obs.homeName);
+    const aId = resolve(obs.awayCode, obs.awayName);
     if (!hId || !aId) continue;
     const match = open.get(pairKey(hId, aId));
     if (!match) continue;
