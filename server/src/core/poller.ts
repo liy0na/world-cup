@@ -78,8 +78,12 @@ export class Poller {
       let providerLabel = this.providers.backbone.name;
       let live = schedule.matches;
       const liveProvider = this.providers.live;
-      if (liveProvider?.loadLive && this.liveLimiter.tryAcquire()) {
-        const observations = await liveProvider.loadLive();
+      if (liveProvider && this.liveLimiter.tryAcquire()) {
+        // Finished results (so a game's score survives leaving the live feed) + in-play overlay.
+        const observations = [
+          ...(liveProvider.loadResults ? await liveProvider.loadResults() : []),
+          ...(liveProvider.loadLive ? await liveProvider.loadLive() : []),
+        ];
         if (observations.length > 0) {
           live = mergeLive(schedule, observations);
           providerLabel = `${this.providers.backbone.name} + ${liveProvider.name}`;

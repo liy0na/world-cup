@@ -3,6 +3,7 @@ import { fetchJson } from '../util/fetchJson';
 import groupsSeed from '../seed/worldcup.groups.json';
 import scheduleSeed from '../seed/worldcup.json';
 import {
+  DISPLAY_NAMES,
   groupLetterFromName,
   KO_ROUND_TO_STAGE,
   parseKickoff,
@@ -51,8 +52,9 @@ function buildTeams(groups: OfGroups): { teams: Team[]; nameToGroup: Map<string,
     const letter = groupLetterFromName(g.name);
     if (!letter) continue;
     for (const name of g.teams) {
+      const code = teamId(name);
       nameToGroup.set(name, letter);
-      teams.push({ id: teamId(name), name, code: teamId(name), group: letter });
+      teams.push({ id: code, name: DISPLAY_NAMES[code] ?? name, code, group: letter });
     }
   }
   return { teams, nameToGroup };

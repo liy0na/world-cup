@@ -18,6 +18,9 @@ export interface LiveObservation {
   awayCode?: string;
   homeScore?: number;
   awayScore?: number;
+  /** Penalty-shootout score (knockout), when the match was level. */
+  penaltyHome?: number;
+  penaltyAway?: number;
   minute?: number;
   finished?: boolean;
 }
@@ -28,6 +31,8 @@ export interface DataProvider {
   loadSchedule(): Promise<Schedule>;
   /** Best-effort in-play overlay: matches currently live, with their current score. */
   loadLive?(): Promise<LiveObservation[]>;
+  /** Finished matches with final scores (so results aren't lost when a game leaves the live feed). */
+  loadResults?(): Promise<LiveObservation[]>;
 }
 
 /** FIFA 3-letter codes for the 48 finalists (used as stable team ids). */
@@ -80,6 +85,11 @@ export const TEAM_CODES: Record<string, string> = {
   Croatia: 'CRO',
   Ghana: 'GHA',
   Panama: 'PAN',
+};
+
+/** Preferred display names (FIFA-canonical) overriding the backbone's, keyed by team code. */
+export const DISPLAY_NAMES: Record<string, string> = {
+  CIV: "Côte d'Ivoire",
 };
 
 /** Normalise a team display name to a comparable key (diacritics/spacing-insensitive). */

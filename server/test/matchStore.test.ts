@@ -45,4 +45,23 @@ describe('mergeLive', () => {
     expect(m.homeScore).toBe(1); // Germany is the fixture's home team
     expect(m.awayScore).toBe(3);
   });
+
+  it('records a finished result (so the score survives leaving the live feed)', () => {
+    const obs: LiveObservation[] = [
+      { homeName: 'Germany', awayName: "Côte d'Ivoire", homeCode: 'GER', awayCode: 'CIV', homeScore: 2, awayScore: 1, finished: true },
+    ];
+    const m = mergeLive(schedule, obs)[0]!;
+    expect(m.status).toBe('finished');
+    expect(m.homeScore).toBe(2);
+    expect(m.awayScore).toBe(1);
+  });
+
+  it('carries penalties oriented to the fixture (knockout shoot-out)', () => {
+    const obs: LiveObservation[] = [
+      { homeName: 'Ivory Coast', awayName: 'Germany', homeCode: 'CIV', awayCode: 'GER', homeScore: 1, awayScore: 1, penaltyHome: 5, penaltyAway: 4, finished: true },
+    ];
+    const m = mergeLive(schedule, obs)[0]!;
+    expect(m.status).toBe('finished');
+    expect(m.penalties).toEqual({ home: 4, away: 5 }); // Germany (fixture home) won 4? no — oriented: GER 4, CIV 5
+  });
 });

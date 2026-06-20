@@ -33,13 +33,20 @@ export function mergeLive(schedule: Schedule, live: LiveObservation[]): Match[] 
     if (!hId || !aId) continue;
     const match = open.get(pairKey(hId, aId));
     if (!match) continue;
-    // Orient the observed score to the fixture's home/away.
+    // Orient the observed score (and any penalties) to the fixture's home/away.
     const sameOrientation = match.home.teamId === hId;
+    const hasPens = typeof obs.penaltyHome === 'number' && typeof obs.penaltyAway === 'number';
     overlay.set(match.id, {
       status: obs.finished ? 'finished' : 'live',
-      minute: obs.minute,
+      minute: obs.finished ? undefined : obs.minute,
       homeScore: sameOrientation ? obs.homeScore : obs.awayScore,
       awayScore: sameOrientation ? obs.awayScore : obs.homeScore,
+      penalties: hasPens
+        ? {
+            home: (sameOrientation ? obs.penaltyHome : obs.penaltyAway) as number,
+            away: (sameOrientation ? obs.penaltyAway : obs.penaltyHome) as number,
+          }
+        : undefined,
     });
   }
 
