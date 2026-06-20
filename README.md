@@ -1,0 +1,92 @@
+# World Cup 2026 — live tables & projected knockout bracket
+
+A self-hosted dashboard that fetches FIFA World Cup 2026 scores and live scores, keeps the 12 group
+tables updated in real time, and continuously recomputes the **projected knockout bracket "as it
+stands"** — using the exact 2026 tiebreakers and FIFA's official Annex C combination table for the
+eight best third-placed teams.
+
+Built to run locally on Windows and deploy behind your own reverse proxy (e.g. Traefik on a VPS).
+
+## How it works
+
+```text
+ upstream football data ──▶ one rate-limited poller ──▶ snapshot cache ──▶ SSE fan-out ──▶ browsers
+   (openfootball + FIFA)        (adaptive cadence)       (in-mem + disk)     (+ poll fallback)
+```
+
+- **One poller, unlimited viewers.** The server polls upstream on an adaptive schedule (fast while a
+  match is live, idle otherwise) and caches a single snapshot. Browsers subscribe to that cache over
+  **Server-Sent Events** — they never call the upstream API, so the number of viewers is fully
+  decoupled from upstream request volume. A token-bucket limiter is a hard backstop on upstream calls.
+- **We compute standings and the bracket ourselves** from match results. This is required for the
+  "as it stands" projection anyway, and sidesteps the fact that no free API offers a clean WC2026
+  standings feed.
+- **Last-good snapshot on disk** → instant render on restart, and the app keeps working if the
+  upstream feed goes quiet.
+
+## Data sources (free by default)
+
+No mainstream API offers WC2026 **live scores + standings** on a permanent free tier, so the default
+config is a free hybrid, abstracted behind a `DataProvider` interface:
+
+| Source | Role | Notes |
+| --- | --- | --- |
+| [openfootball/worldcup.json](https://github.com/openfootball/worldcup.json) | Backbone: schedule, 12 groups, results | Free, no key. Bundled as an offline seed so the app renders on first run. Volunteer-updated (lags during play). |
+| Unofficial FIFA API (`api.fifa.com/api/v3`) | In-play live overlay | Free, no key, **undocumented/fragile** — used best-effort; failures are ignored and the backbone stands. Disable with `FIFA_LIVE=false`. |
+
+**Paid-ready:** the provider interface is uniform, so a supported feed (API-Football, TheSportsDB
+Premium) can be dropped in via config/env without touching the rest of the app — see
+[server/src/providers/index.ts](server/src/providers/index.ts).
+
+## Project layout
+
+- **[shared/](shared/)** — pure, unit-tested engine + domain types (the heart of the app):
+  - [standings.ts](shared/src/standings.ts) — group tables + the 2026 tiebreakers.
+  - [thirds.ts](shared/src/thirds.ts) — ranking the 12 third-placed teams, best 8 qualify.
+  - [bracket.ts](shared/src/bracket.ts) + [data/](shared/src/data/) — R32→Final slotting via the
+    verified **495-row** FIFA combination table.
+- **[server/](server/)** — Fastify app: providers, match store, poller, rate limiter, snapshot
+  cache, SSE. Serves the built SPA on a single port.
+- **[web/](web/)** — Vite + React + Tailwind UI: live scores, group tables, third-place ranking,
+  projected bracket.
+
+## Run locally
+
+```bash
+npm install
+
+# Dev: Fastify (API + SSE) on :8787 and the Vite UI on :5173 (proxies /api).
+npm run dev
+# open http://localhost:5173
+
+# Tests (the engine — tiebreakers, third-place ranking, bracket slotting):
+npm test
+
+# Production build + run on a single port (Fastify serves the built SPA):
+npm run build
+npm start          # http://localhost:8787
+```
+
+Config is via env (see [.env.example](.env.example)). Notable: `PORT`, `DATA_DIR` (snapshot location),
+`FIFA_LIVE`, and the poll cadences.
+
+## Deploy (Docker, behind Traefik)
+
+```bash
+docker build -t world-cup .
+docker run -p 8787:8787 -v wc-data:/data world-cup
+```
+
+The image is a single self-contained server bundle + the built SPA, listening on one HTTP port
+(`PORT`, default 8787) — point one Traefik router/service at it and let Traefik terminate TLS. The
+SSE endpoint sets `Cache-Control: no-cache` / `X-Accel-Buffering: no` and emits heartbeats so it
+streams cleanly through the proxy. Mount a volume at `/data` to persist the last-good snapshot.
+
+## Caveats
+
+- The knockout bracket is a **live projection**: mid-group-stage it treats current standings as if
+  final. It is only fixed once all 72 group matches finish. Slot resolution uses FIFA's official
+  combination table, so matchups are correct for any given set of qualifiers.
+- The free FIFA live overlay is unofficial and may break; the app degrades gracefully to the
+  openfootball backbone (results appear with a short lag) and a supported paid feed can be enabled.
+- Not affiliated with FIFA.

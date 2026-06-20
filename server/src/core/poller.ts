@@ -1,0 +1,133 @@
+import type { Snapshot } from '@wc/shared';
+import type { Config } from '../config';
+import { mergeLive } from '../pipeline/matchStore';
+import { buildSnapshot } from '../pipeline/snapshot';
+import type { Providers } from '../providers';
+import type { Schedule } from '../providers/provider';
+import type { SnapshotCache } from './cache';
+import { RateLimiter } from './rateLimiter';
+
+const BACKBONE_TTL_MS = 10 * 60_000;
+const MATCH_WINDOW_MS = 3 * 60 * 60_000;
+
+/**
+ * The single poller. It decouples two clocks: how often we call upstream (this
+ * loop, gated by the schedule + a hard rate limiter) vs. how often browsers see
+ * updates (the SSE fan-out from the cache). Browsers never trigger upstream calls.
+ */
+export class Poller {
+  private schedule: Schedule | undefined;
+  private scheduleFetchedAt = 0;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private inFlight: Promise<void> | undefined;
+  private stopped = false;
+  private lastError: string | undefined;
+  private readonly liveLimiter: RateLimiter;
+
+  constructor(
+    private readonly providers: Providers,
+    private readonly cache: SnapshotCache,
+    private readonly config: Config,
+  ) {
+    // Generous for openfootball; conservative enough to never hammer the FIFA endpoint.
+    this.liveLimiter = new RateLimiter({ perMinute: 6 });
+  }
+
+  async start(): Promise<void> {
+    await this.refresh();
+    this.scheduleNext();
+  }
+
+  stop(): void {
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
+  }
+
+  /** Refresh now, coalescing concurrent callers into one upstream pass (single-flight). */
+  refresh(): Promise<void> {
+    this.inFlight ??= this.doRefresh().finally(() => {
+      this.inFlight = undefined;
+    });
+    return this.inFlight;
+  }
+
+  health(): Record<string, unknown> {
+    const snap = this.cache.get();
+    return {
+      provider: snap?.source.provider,
+      generatedAt: snap?.generatedAt,
+      live: snap?.source.live ?? false,
+      liveQuotaRemaining: this.liveLimiter.remainingToday,
+      subscribers: this.cache.subscriberCount,
+      lastError: this.lastError,
+    };
+  }
+
+  private async loadBackbone(): Promise<void> {
+    const stale = Date.now() - this.scheduleFetchedAt > BACKBONE_TTL_MS;
+    if (this.schedule && !stale) return;
+    this.schedule = await this.providers.backbone.loadSchedule();
+    this.scheduleFetchedAt = Date.now();
+  }
+
+  private async doRefresh(): Promise<void> {
+    try {
+      await this.loadBackbone();
+      const schedule = this.schedule!;
+
+      let providerLabel = this.providers.backbone.name;
+      let live = schedule.matches;
+      const liveProvider = this.providers.live;
+      if (liveProvider?.loadLive && this.liveLimiter.tryAcquire()) {
+        const observations = await liveProvider.loadLive();
+        if (observations.length > 0) {
+          live = mergeLive(schedule, observations);
+          providerLabel = `${this.providers.backbone.name} + ${liveProvider.name}`;
+        }
+      }
+
+      const snapshot = buildSnapshot(schedule.teams, live, providerLabel);
+      if (this.hasChanged(snapshot)) await this.cache.set(snapshot);
+      this.lastError = undefined;
+    } catch (err) {
+      this.lastError = (err as Error).message;
+      console.warn(`[poller] refresh failed: ${this.lastError}`);
+    }
+  }
+
+  /** Avoid pushing identical snapshots (the timestamp always differs, so compare the rest). */
+  private hasChanged(next: Snapshot): boolean {
+    const prev = this.cache.get();
+    if (!prev) return true;
+    return !sameSnapshot(prev, next);
+  }
+
+  private scheduleNext(): void {
+    if (this.stopped) return;
+    const interval = this.chooseInterval();
+    this.timer = setTimeout(() => {
+      void this.refresh().finally(() => this.scheduleNext());
+    }, interval);
+  }
+
+  private chooseInterval(): number {
+    const snap = this.cache.get();
+    if (snap && snap.status.liveMatchCount > 0) return this.config.pollLiveMs;
+    if (snap && nearMatchWindow(snap)) return this.config.pollMatchDayMs;
+    return this.config.pollIdleMs;
+  }
+}
+
+function nearMatchWindow(snap: Snapshot): boolean {
+  const now = Date.now();
+  return snap.matches.some((m) => {
+    if (m.status === 'finished') return false;
+    const t = Date.parse(m.kickoff);
+    return Number.isFinite(t) && Math.abs(t - now) <= MATCH_WINDOW_MS;
+  });
+}
+
+/** Structural equality ignoring the generatedAt timestamp. */
+function sameSnapshot(a: Snapshot, b: Snapshot): boolean {
+  return JSON.stringify({ ...a, generatedAt: '' }) === JSON.stringify({ ...b, generatedAt: '' });
+}

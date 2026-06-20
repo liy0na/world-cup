@@ -1,0 +1,29 @@
+{
+  "name": "world-cup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm -w @wc/server run dev",
+    "dev:web": "npm -w @wc/web run dev",
+    "build": "npm -w @wc/web run build && npm -w @wc/server run build",
+    "start": "npm -w @wc/server run start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "overrides": {
+    "vite": "^6.1.0"
+  }
+}
