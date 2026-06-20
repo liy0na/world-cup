@@ -1,4 +1,5 @@
 import type { Match } from '@wc/shared';
+import { Flag } from '../lib/flags';
 import { kickoffDay, kickoffLabel } from '../lib/format';
 import { slotCode, slotName, type TeamMap } from '../lib/teams';
 
@@ -52,6 +53,7 @@ function Row({
   return (
     <div className="flex items-center justify-between py-0.5">
       <div className="flex items-center gap-2 min-w-0">
+        <Flag code={code} />
         <span className="font-mono text-[11px] text-slate-500 w-9">{code}</span>
         <span className="text-sm text-slate-200 truncate">{name}</span>
       </div>
@@ -77,14 +79,17 @@ function stageLabel(m: Match): string {
 }
 
 export function LiveScores({ matches, teams }: Props) {
-  const live = matches.filter((m) => m.status === 'live');
+  // Group-stage tracker; knockout fixtures live in the bracket (and would show
+  // raw "1E / 3A/B/C/D/F" placeholders here until their teams are decided).
+  const group = matches.filter((m) => m.stage === 'group');
+  const live = group.filter((m) => m.status === 'live');
   const byKickoff = (a: Match, b: Match) => Date.parse(a.kickoff) - Date.parse(b.kickoff);
-  const recent = matches
+  const recent = group
     .filter((m) => m.status === 'finished')
     .sort(byKickoff)
     .slice(-6)
     .reverse();
-  const upcoming = matches.filter((m) => m.status === 'scheduled').sort(byKickoff).slice(0, 8);
+  const upcoming = group.filter((m) => m.status === 'scheduled').sort(byKickoff).slice(0, 8);
 
   const ordered = [...live, ...recent, ...upcoming];
   if (ordered.length === 0) return null;

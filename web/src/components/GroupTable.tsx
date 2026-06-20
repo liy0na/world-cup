@@ -1,4 +1,5 @@
 import type { GroupTable as GroupTableType, Qualification } from '@wc/shared';
+import { Flag } from '../lib/flags';
 import { outlookStyle } from '../lib/status';
 import type { TeamMap } from '../lib/teams';
 
@@ -48,8 +49,9 @@ export function GroupTable({ table, teams, qualification }: Props) {
                 <td className={`py-1.5 pl-3 border-l-2 ${style.accent}`}>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-600 tabular-nums w-3 text-xs">{row.rank}</span>
+                    <Flag code={t?.code} />
                     <span className="font-mono text-[11px] text-slate-400 w-9">{t?.code ?? row.teamId}</span>
-                    <span className="text-slate-200 truncate max-w-32">{t?.name ?? row.teamId}</span>
+                    <span className="text-slate-200 truncate max-w-28">{t?.name ?? row.teamId}</span>
                     {style.marker && (
                       <span className={`text-xs ${style.markerClass}`} title={style.label}>
                         {style.marker}

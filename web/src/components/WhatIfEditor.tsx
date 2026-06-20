@@ -1,4 +1,5 @@
 import type { Match } from '@wc/shared';
+import { Flag } from '../lib/flags';
 import { kickoffDay } from '../lib/format';
 import { slotCode, slotName, type TeamMap } from '../lib/teams';
 
@@ -17,11 +18,11 @@ interface Props {
 function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <input
-      type="number"
-      min={0}
+      type="text"
       inputMode="numeric"
+      aria-label="score"
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
       className="w-10 rounded-md border border-slate-700 bg-slate-950 px-1 py-0.5 text-center text-sm tabular-nums text-slate-100 focus:border-emerald-500 focus:outline-none"
     />
   );
@@ -93,15 +94,15 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
                       <span className="w-12 shrink-0 text-[10px] uppercase tracking-wider text-slate-600">
                         {kickoffDay(m.kickoff)}
                       </span>
-                      <span className="flex-1 truncate text-right text-slate-200">
-                        {slotName(m.home, teams)}{' '}
-                        <span className="font-mono text-[10px] text-slate-500">{slotCode(m.home, teams)}</span>
+                      <span className="flex flex-1 items-center justify-end gap-1.5 truncate text-slate-200">
+                        {slotName(m.home, teams)}
+                        <Flag code={slotCode(m.home, teams)} />
                       </span>
                       <ScoreInput value={d.h} onChange={(v) => set(m.id, 'h', v)} />
                       <span className="text-slate-600">–</span>
                       <ScoreInput value={d.a} onChange={(v) => set(m.id, 'a', v)} />
-                      <span className="flex-1 truncate text-slate-200">
-                        <span className="font-mono text-[10px] text-slate-500">{slotCode(m.away, teams)}</span>{' '}
+                      <span className="flex flex-1 items-center gap-1.5 truncate text-slate-200">
+                        <Flag code={slotCode(m.away, teams)} />
                         {slotName(m.away, teams)}
                       </span>
                     </li>

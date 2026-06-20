@@ -1,4 +1,5 @@
 import type { ThirdPlaceRanking } from '@wc/shared';
+import { Flag } from '../lib/flags';
 import type { TeamMap } from '../lib/teams';
 
 interface Props {
@@ -49,8 +50,11 @@ export function ThirdPlaceTable({ ranking, teams }: Props) {
                 </td>
                 <td className="py-1.5 text-slate-400 font-mono text-xs">{row.group}</td>
                 <td className="py-1.5">
-                  <span className="font-mono text-[11px] text-slate-400 mr-2">{team?.code ?? row.teamId}</span>
-                  <span className="text-slate-200">{team?.name ?? row.teamId}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <Flag code={team?.code} />
+                    <span className="font-mono text-[11px] text-slate-400">{team?.code ?? row.teamId}</span>
+                    <span className="text-slate-200">{team?.name ?? row.teamId}</span>
+                  </span>
                 </td>
                 <td className="py-1.5 px-1.5 text-right tabular-nums font-semibold text-slate-100">{row.points}</td>
                 <td className="py-1.5 px-1.5 text-right tabular-nums text-slate-400">

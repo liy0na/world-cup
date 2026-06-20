@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { Bracket as BracketType, BracketMatch, Qualification, SlotRef } from '@wc/shared';
+import { Flag } from '../lib/flags';
 import { bracketNameClass } from '../lib/status';
 import { isResolved, slotCode, slotName, type TeamMap } from '../lib/teams';
 
@@ -67,11 +68,11 @@ function Num({
 }) {
   return (
     <input
-      type="number"
-      min={0}
+      type="text"
+      inputMode="numeric"
       aria-label={label}
       value={value ?? ''}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
       className="w-8 rounded border border-slate-700 bg-slate-950 px-0.5 text-center text-[13px] tabular-nums text-slate-100 focus:border-emerald-500 focus:outline-none"
     />
   );
@@ -99,6 +100,7 @@ function SlotLine({
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1">
       <div className="flex items-center gap-2 min-w-0">
+        {resolved ? <Flag code={slotCode(slot, teams)} /> : <span className="w-5 shrink-0" />}
         <span className="font-mono text-[10px] text-slate-500 w-8 shrink-0">
           {resolved ? slotCode(slot, teams) : ''}
         </span>
