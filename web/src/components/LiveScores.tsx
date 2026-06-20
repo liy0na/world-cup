@@ -15,7 +15,7 @@ function MatchCard({ match, teams }: { match: Match; teams: TeamMap }) {
   const tag = match.group ? `Group ${match.group}` : stageLabel(match);
 
   return (
-    <div className="min-w-[15rem] shrink-0 rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+    <div className="min-w-60 shrink-0 rounded-lg border border-slate-800 bg-slate-900/50 p-3">
       <div className="flex items-center justify-between mb-2 text-[10px] uppercase tracking-wider">
         <span className="text-slate-500">{tag}</span>
         {live ? (

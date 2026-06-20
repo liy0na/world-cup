@@ -19,6 +19,9 @@ RUN npm run build
 
 # ---- Runtime stage: just the self-contained server bundle + built SPA ----
 FROM node:22-alpine AS runtime
+# Patch OS-level CVEs in the base image's packages (Alpine uses apk, not apt).
+# Combined with the weekly CI rebuild, the published image stays current.
+RUN apk upgrade --no-cache
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

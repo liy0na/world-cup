@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  # Weekly rebuild so the published image keeps picking up base-image (Alpine) security patches.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 jobs:
   test:
