@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <clipPath id="ball"><circle cx="16" cy="16" r="15" /></clipPath>
+    <!-- One outer pentagon (vertex pointing outward), replicated by rotation. -->
+    <polygon id="sp" points="16,29.64 12.5,27.09 13.83,22.98 18.17,22.98 19.5,27.09" />
+  </defs>
+
+  <circle cx="16" cy="16" r="15" fill="#ffffff" />
+  <g clip-path="url(#ball)" fill="#111111">
+    <polygon points="16,10.55 21.18,14.31 19.2,20.42 12.8,20.42 10.82,14.31" />
+    <use href="#sp" />
+    <use href="#sp" transform="rotate(72 16 16)" />
+    <use href="#sp" transform="rotate(144 16 16)" />
+    <use href="#sp" transform="rotate(216 16 16)" />
+    <use href="#sp" transform="rotate(288 16 16)" />
+  </g>
+  <circle cx="16" cy="16" r="15" fill="none" stroke="#111111" stroke-width="1" />
+</svg>
