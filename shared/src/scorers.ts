@@ -1,4 +1,4 @@
-import type { Match, TopScorer } from './types';
+import type { Match, TopAssister, TopScorer } from './types';
 
 /**
  * Aggregate goals into a Golden Boot table. Own goals are not credited to any
@@ -35,6 +35,32 @@ export function computeTopScorers(matches: Match[]): TopScorer[] {
       prevGoals = s.goals;
     }
     rows.push({ rank, ...s, matchesPlayed: s.playerId ? (appearances.get(s.playerId) ?? 0) : 0 });
+  });
+  return rows;
+}
+
+/** Top assist providers, ranked by assists (ties share a rank). */
+export function computeTopAssists(matches: Match[]): TopAssister[] {
+  const acc = new Map<string, { playerId?: string; player: string; teamId: string; assists: number }>();
+  for (const m of matches) {
+    for (const a of m.assists ?? []) {
+      const key = a.playerId ?? `${a.teamId}:${a.player}`;
+      const cur = acc.get(key) ?? { playerId: a.playerId, player: a.player, teamId: a.teamId, assists: 0 };
+      cur.assists += 1;
+      if (a.player) cur.player = a.player;
+      acc.set(key, cur);
+    }
+  }
+  const sorted = [...acc.values()].sort((a, b) => b.assists - a.assists || a.player.localeCompare(b.player));
+  const rows: TopAssister[] = [];
+  let rank = 0;
+  let prev = -1;
+  sorted.forEach((s, i) => {
+    if (s.assists !== prev) {
+      rank = i + 1;
+      prev = s.assists;
+    }
+    rows.push({ rank, ...s });
   });
   return rows;
 }

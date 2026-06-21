@@ -26,3 +26,24 @@ export function kickoffLabel(iso: string, lang: Lang): string {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString(locale(lang), { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
+
+/** Stable local-day key (YYYY-MM-DD) for grouping/sorting matches by date. */
+export function kickoffDateKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-CA'); // ISO-like, locale-stable
+}
+
+/** A day heading like "Sunday, 21 June" (localised). */
+export function kickoffDateHeading(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/** Just the kickoff time, e.g. "20:00". */
+export function kickoffTime(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(locale(lang), { hour: '2-digit', minute: '2-digit' });
+}

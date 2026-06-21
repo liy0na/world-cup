@@ -1,4 +1,4 @@
-import type { Snapshot } from '@wc/shared';
+import type { MatchDetail, Snapshot } from '@wc/shared';
 import type { Config } from '../config';
 import { GoalTracker } from '../pipeline/goals';
 import { mergeLive } from '../pipeline/matchStore';
@@ -28,6 +28,9 @@ export class Poller {
   private readonly liveLimiter: RateLimiter;
   private readonly goals = new GoalTracker();
   private goalsSeeded = false;
+  /** fixture id -> upstream ref, for on-demand match detail. */
+  private readonly fixtureRefs = new Map<string, MatchRef>();
+  private readonly detailCache = new Map<string, { detail: MatchDetail; at: number }>();
 
   constructor(
     private readonly providers: Providers,
@@ -105,7 +108,10 @@ export class Poller {
           providerLabel = `${this.providers.backbone.name} + ${liveProvider.name}`;
         }
         // Overlay scorers: live games (refreshed) + finished games (backfilled, newest first).
-        if (refs.length > 0) await this.goals.update(live, refs, liveProvider, GOAL_FETCH_CONCURRENCY);
+        if (refs.length > 0) {
+          await this.goals.update(live, refs, liveProvider, GOAL_FETCH_CONCURRENCY);
+          this.indexRefs(live, refs);
+        }
       }
 
       live = this.goals.attach(live);
@@ -115,6 +121,38 @@ export class Poller {
     } catch (err) {
       this.lastError = (err as Error).message;
       console.warn(`[poller] refresh failed: ${this.lastError}`);
+    }
+  }
+
+  /** Map each resolved fixture to its upstream ref, so match detail can be fetched on demand. */
+  private indexRefs(matches: { id: string; home: { teamId?: string }; away: { teamId?: string } }[], refs: MatchRef[]): void {
+    const pk = (a?: string, b?: string) => [a, b].filter(Boolean).sort().join('|');
+    const byPair = new Map<string, MatchRef>();
+    for (const r of refs) if (r.homeCode && r.awayCode) byPair.set(pk(r.homeCode, r.awayCode), r);
+    for (const m of matches) {
+      if (!m.home.teamId || !m.away.teamId) continue;
+      const ref = byPair.get(pk(m.home.teamId, m.away.teamId));
+      if (ref) this.fixtureRefs.set(m.id, ref);
+    }
+  }
+
+  /** Fetch rich detail for one match (lineups, timeline, venue), cached. */
+  async getMatchDetail(matchId: string): Promise<MatchDetail | null> {
+    const provider = this.providers.live;
+    if (!provider?.loadMatchDetail) return null;
+    const ref = this.fixtureRefs.get(matchId);
+    if (!ref) return null;
+    const finished = this.cache.get()?.matches.find((m) => m.id === matchId)?.status === 'finished';
+    const ttl = finished ? 24 * 60 * 60_000 : 30_000; // finished detail is static
+    const cached = this.detailCache.get(matchId);
+    if (cached && Date.now() - cached.at < ttl) return cached.detail;
+    try {
+      const detail: MatchDetail = { ...(await provider.loadMatchDetail(ref)), matchId };
+      this.detailCache.set(matchId, { detail, at: Date.now() });
+      return detail;
+    } catch (err) {
+      console.warn(`[poller] match detail failed: ${(err as Error).message}`);
+      return cached?.detail ?? null;
     }
   }
 

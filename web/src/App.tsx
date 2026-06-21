@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react';
 import { computeStandings, type Match, type Snapshot } from '@wc/shared';
 import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
+import { AllMatches } from './components/AllMatches';
 import { LiveScores } from './components/LiveScores';
 import { Scenarios } from './components/Scenarios';
+import { TeamRecords } from './components/TeamRecords';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
+import { TopAssists } from './components/TopAssists';
 import { TopScorers } from './components/TopScorers';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
@@ -19,7 +22,7 @@ const CONN_COLOR: Record<ConnectionStatus, string> = {
   offline: 'bg-red-500',
 };
 
-type Tab = 'groups' | 'bracket' | 'whatif';
+type Tab = 'groups' | 'matches' | 'bracket' | 'whatif';
 type Scenario = Record<string, KoResult>;
 
 function applyScenario(snapshot: Snapshot, scenario: Scenario): Snapshot {
@@ -112,7 +115,7 @@ export function App() {
             </div>
           </div>
           <nav className="mt-3 flex gap-1">
-            {(['groups', 'bracket', 'whatif'] as Tab[]).map((key) => (
+            {(['groups', 'matches', 'bracket', 'whatif'] as Tab[]).map((key) => (
               <button
                 key={key}
                 type="button"
@@ -145,7 +148,7 @@ export function App() {
               </div>
             )}
 
-            {tab === 'whatif' ? (
+            {tab === 'whatif' && (
               <WhatIfEditor
                 matches={snapshot!.matches}
                 teams={teams}
@@ -155,9 +158,9 @@ export function App() {
                 onCalculate={calculate}
                 onReset={reset}
               />
-            ) : (
-              <LiveScores matches={view.matches} teams={teams} />
             )}
+            {(tab === 'groups' || tab === 'bracket') && <LiveScores matches={view.matches} teams={teams} />}
+            {tab === 'matches' && <AllMatches matches={view.matches} teams={teams} />}
 
             {tab === 'groups' && (
               <>
@@ -167,9 +170,13 @@ export function App() {
                   ))}
                 </section>
                 <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
-                <section className="grid items-start gap-4 lg:grid-cols-2">
+                <section className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                   <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} />
                   <TopScorers scorers={view.topScorers ?? []} teams={teams} />
+                  <TopAssists assists={view.topAssists ?? []} teams={teams} />
+                  <div className="lg:col-span-2 2xl:col-span-3">
+                    <TeamRecords stats={view.teamStats ?? []} teams={teams} />
+                  </div>
                 </section>
               </>
             )}

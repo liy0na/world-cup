@@ -10,6 +10,8 @@ export interface RouteDeps {
   webDist: string;
   /** Optional liveness info surfaced on /api/health. */
   health: () => Record<string, unknown>;
+  /** Rich on-demand detail for a single match (lineups, timeline, venue). */
+  matchDetail: (id: string) => Promise<unknown>;
 }
 
 export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
@@ -23,6 +25,14 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
     const snap = cache.get();
     if (!snap) return reply.code(503).send({ error: 'warming up' });
     return reply.send(snap);
+  });
+
+  // On-demand rich detail for one match (lineups, timeline, venue). Not in the
+  // snapshot — fetched lazily and cached server-side when a match is opened.
+  app.get<{ Params: { id: string } }>('/api/match/:id', async (req, reply) => {
+    const detail = await deps.matchDetail(req.params.id);
+    if (!detail) return reply.code(404).send({ error: 'no detail' });
+    return reply.header('Cache-Control', 'no-store').send(detail);
   });
 
   // SSE: push the current snapshot immediately, then every change, plus a

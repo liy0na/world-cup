@@ -1,4 +1,4 @@
-import type { GroupLetter, Match, Team } from '@wc/shared';
+import type { CardTally, GroupLetter, Match, MatchDetail, Team } from '@wc/shared';
 
 export interface Schedule {
   teams: Team[];
@@ -48,10 +48,23 @@ export interface ObservedGoal {
   order: number;
 }
 
-/** A match's goal events plus the ids of players who actually played (both teams). */
+/** An assist, with side relative to the upstream home/away. */
+export interface ObservedAssist {
+  side: 'home' | 'away';
+  playerId?: string;
+  player: string;
+  minute: string;
+}
+
+/** Everything we extract from a match's detail + timeline in one pass. */
 export interface MatchEvents {
   goals: ObservedGoal[];
+  /** Player ids (both teams) who played (started or came on). */
   lineup: string[];
+  /** Disciplinary cards for the upstream home/away team. */
+  homeCards: CardTally;
+  awayCards: CardTally;
+  assists: ObservedAssist[];
 }
 
 export interface DataProvider {
@@ -66,6 +79,8 @@ export interface DataProvider {
   loadCalendar?(): Promise<{ results: LiveObservation[]; refs: MatchRef[] }>;
   /** Goal events (scorers) + who played, for one match. */
   loadMatchGoals?(ref: MatchRef): Promise<MatchEvents>;
+  /** Rich on-demand detail (lineups, timeline, venue) for a single match. */
+  loadMatchDetail?(ref: MatchRef): Promise<MatchDetail>;
 }
 
 /** FIFA 3-letter codes for the 48 finalists (used as stable team ids). */

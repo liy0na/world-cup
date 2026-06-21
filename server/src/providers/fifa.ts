@@ -1,5 +1,14 @@
+import type { CardTally, LineupPlayer, MatchDetail, MatchEventType, MatchTimelineEntry } from '@wc/shared';
 import { fetchJson } from '../util/fetchJson';
-import type { DataProvider, LiveObservation, MatchEvents, MatchRef, ObservedGoal, Schedule } from './provider';
+import type {
+  DataProvider,
+  LiveObservation,
+  MatchEvents,
+  MatchRef,
+  ObservedAssist,
+  ObservedGoal,
+  Schedule,
+} from './provider';
 
 // FIFA World Cup = competition 17; the 2026 edition = season 285023.
 const WORLD_CUP_COMPETITION = '17';
@@ -55,6 +64,7 @@ interface FifaPlayer {
   IdPlayer?: string;
   PlayerName?: FifaLocalised[];
   ShortName?: FifaLocalised[];
+  ShirtNumber?: number;
   /** 1 = starting XI, 2 = bench. */
   Status?: number;
 }
@@ -67,14 +77,47 @@ interface FifaGoal {
 interface FifaSubstitution {
   IdPlayerOn?: string;
 }
+interface FifaBooking {
+  // 1 = yellow, 2 = second yellow (indirect red), 3 = straight red.
+  Card?: number;
+  IdPlayer?: string;
+  Minute?: string;
+}
 interface FifaTeamDetail {
+  IdTeam?: string;
   Goals?: FifaGoal[] | null;
   Players?: FifaPlayer[] | null;
   Substitutions?: FifaSubstitution[] | null;
+  Bookings?: FifaBooking[] | null;
+}
+interface FifaStadium {
+  Name?: FifaLocalised[];
+  CityName?: FifaLocalised[];
+}
+interface FifaOfficial {
+  Name?: FifaLocalised[];
+  NameShort?: FifaLocalised[];
+  OfficialType?: number;
 }
 interface FifaMatchDetail {
   HomeTeam?: FifaTeamDetail | null;
   AwayTeam?: FifaTeamDetail | null;
+  Stadium?: FifaStadium | null;
+  Attendance?: number | string | null;
+  Officials?: FifaOfficial[] | null;
+  BallPossession?: { Home?: number; Away?: number; OverallHome?: number; OverallAway?: number } | null;
+}
+
+// Timeline endpoint: assists are only here (not on the goal objects).
+interface FifaTimelineEvent {
+  Type?: number;
+  IdPlayer?: string;
+  IdTeam?: string;
+  MatchMinute?: string;
+  EventDescription?: FifaLocalised[];
+}
+interface FifaTimeline {
+  Event?: FifaTimelineEvent[];
 }
 
 function pickName(team: FifaTeam | null | undefined): string | undefined {
@@ -121,6 +164,43 @@ function refOf(m: FifaCalendarMatch): MatchRef | undefined {
 
 function goalKind(type?: number): ObservedGoal['kind'] {
   return type === 1 ? 'penalty' : type === 3 ? 'own' : 'goal';
+}
+
+function pickEn(arr?: FifaLocalised[]): string | undefined {
+  return arr?.find((n) => n.Locale?.toLowerCase().startsWith('en'))?.Description ?? arr?.[0]?.Description;
+}
+
+/** Map a FIFA timeline event type to a key event we surface in the match detail. */
+function timelineType(type?: number): MatchEventType | undefined {
+  switch (type) {
+    case 0:
+      return 'goal';
+    case 41:
+      return 'penalty';
+    case 34:
+      return 'own';
+    case 2:
+      return 'yellow';
+    case 3:
+      return 'red';
+    case 5:
+      return 'sub';
+    case 71:
+      return 'var';
+    default:
+      return undefined; // skip noise (fouls, attempts, throw-ins, …)
+  }
+}
+
+/** Aggregate a side's bookings into a card tally (1=yellow, 2=2nd-yellow, 3=red). */
+function cardTally(bookings: FifaBooking[] | null | undefined): CardTally {
+  const t: CardTally = { yellow: 0, doubleYellow: 0, red: 0 };
+  for (const b of bookings ?? []) {
+    if (b.Card === 1) t.yellow += 1;
+    else if (b.Card === 2) t.doubleYellow += 1;
+    else if (b.Card === 3) t.red += 1;
+  }
+  return t;
 }
 
 /** "RAUL JIMENEZ" / "Raul JIMENEZ" -> "Raul Jimenez" (title-case ALL-CAPS tokens only). */
@@ -220,11 +300,18 @@ export class FifaLiveProvider implements DataProvider {
     }
   }
 
-  /** Goal events (ordered by minute) + who played, for one match. */
+  /** Goals (ordered by minute), who played, cards and assists for one match. */
   async loadMatchGoals(ref: MatchRef): Promise<MatchEvents> {
+    const detailUrl = `${this.base}/live/football/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
+    const timelineUrl = `${this.base}/timelines/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
+    const empty: CardTally = { yellow: 0, doubleYellow: 0, red: 0 };
     try {
-      const url = `${this.base}/live/football/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
-      const d = await fetchJson<FifaMatchDetail>(url, { timeoutMs: 10_000 });
+      // Detail has goals/lineups/cards; the timeline is the only place assists live.
+      const [d, tl] = await Promise.all([
+        fetchJson<FifaMatchDetail>(detailUrl, { timeoutMs: 10_000 }),
+        fetchJson<FifaTimeline>(timelineUrl, { timeoutMs: 10_000 }).catch(() => ({}) as FifaTimeline),
+      ]);
+
       const names = new Map<string, string>();
       const lineup = new Set<string>();
       for (const side of [d.HomeTeam, d.AwayTeam]) {
@@ -234,6 +321,7 @@ export class FifaLiveProvider implements DataProvider {
         }
         for (const s of side?.Substitutions ?? []) if (s.IdPlayerOn) lineup.add(s.IdPlayerOn); // came on
       }
+
       const collect = (side: 'home' | 'away', goals: FifaGoal[] | null | undefined) =>
         (goals ?? []).map((g) => ({
           side,
@@ -253,10 +341,82 @@ export class FifaLiveProvider implements DataProvider {
         kind,
         order,
       }));
-      return { goals, lineup: [...lineup] };
+
+      // Assists (timeline Type 1), oriented to home/away via the FIFA team id.
+      const homeId = d.HomeTeam?.IdTeam;
+      const awayId = d.AwayTeam?.IdTeam;
+      const assists: ObservedAssist[] = [];
+      for (const e of tl.Event ?? []) {
+        if (e.Type !== 1) continue;
+        const side = e.IdTeam === homeId ? 'home' : e.IdTeam === awayId ? 'away' : undefined;
+        if (!side) continue;
+        assists.push({
+          side,
+          playerId: e.IdPlayer,
+          player: (e.IdPlayer ? names.get(e.IdPlayer) : undefined) ?? '',
+          minute: e.MatchMinute ?? '',
+        });
+      }
+
+      return {
+        goals,
+        lineup: [...lineup],
+        homeCards: cardTally(d.HomeTeam?.Bookings),
+        awayCards: cardTally(d.AwayTeam?.Bookings),
+        assists,
+      };
     } catch (err) {
       console.warn(`[fifa-goals] fetch failed (ignored): ${(err as Error).message}`);
-      return { goals: [], lineup: [] };
+      return { goals: [], lineup: [], homeCards: empty, awayCards: empty, assists: [] };
     }
+  }
+
+  /** Rich on-demand detail (lineups, key-event timeline, venue) for one match. */
+  async loadMatchDetail(ref: MatchRef): Promise<MatchDetail> {
+    const detailUrl = `${this.base}/live/football/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
+    const timelineUrl = `${this.base}/timelines/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
+    const [d, tl] = await Promise.all([
+      fetchJson<FifaMatchDetail>(detailUrl, { timeoutMs: 10_000 }),
+      fetchJson<FifaTimeline>(timelineUrl, { timeoutMs: 10_000 }).catch(() => ({}) as FifaTimeline),
+    ]);
+
+    const lineupOf = (side: FifaTeamDetail | null | undefined): LineupPlayer[] => {
+      const onIds = new Set((side?.Substitutions ?? []).map((s) => s.IdPlayerOn).filter(Boolean) as string[]);
+      return (side?.Players ?? [])
+        .filter((p) => p.IdPlayer && (p.Status === 1 || onIds.has(p.IdPlayer)))
+        .map((p) => ({ playerId: p.IdPlayer!, name: playerName(p), shirt: p.ShirtNumber, starter: p.Status === 1 }))
+        .sort((a, b) => Number(b.starter) - Number(a.starter) || (a.shirt ?? 99) - (b.shirt ?? 99));
+    };
+
+    const homeId = d.HomeTeam?.IdTeam;
+    const awayId = d.AwayTeam?.IdTeam;
+    const events: MatchTimelineEntry[] = [];
+    for (const e of tl.Event ?? []) {
+      const type = timelineType(e.Type);
+      if (!type) continue;
+      const side = e.IdTeam === homeId ? 'home' : e.IdTeam === awayId ? 'away' : undefined;
+      events.push({ minute: e.MatchMinute ?? '', type, side, text: pickEn(e.EventDescription) ?? '' });
+    }
+
+    const referee = (d.Officials ?? []).find((o) => o.OfficialType === 1);
+    const poss = d.BallPossession;
+    const home = poss?.Home ?? poss?.OverallHome;
+    const away = poss?.Away ?? poss?.OverallAway;
+    const possession =
+      typeof home === 'number' && typeof away === 'number' ? { home: Math.round(home), away: Math.round(away) } : undefined;
+
+    return {
+      matchId: '', // filled in by the caller, which knows our fixture id
+      homeTeamId: ref.homeCode,
+      awayTeamId: ref.awayCode,
+      venue: pickEn(d.Stadium?.Name),
+      city: pickEn(d.Stadium?.CityName),
+      attendance: typeof d.Attendance === 'number' ? d.Attendance : Number(d.Attendance) || undefined,
+      referee: pickEn(referee?.Name) ?? pickEn(referee?.NameShort),
+      possession,
+      homeLineup: lineupOf(d.HomeTeam),
+      awayLineup: lineupOf(d.AwayTeam),
+      events,
+    };
   }
 }

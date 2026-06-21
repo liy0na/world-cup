@@ -1,5 +1,7 @@
 import {
   computeStandings,
+  computeTeamStats,
+  computeTopAssists,
   computeTopScorers,
   type Match,
   type Snapshot,
@@ -47,6 +49,8 @@ export function buildSnapshot(teams: Team[], matches: Match[], provider: string)
     bracket,
     qualification,
     topScorers: computeTopScorers(matches),
+    topAssists: computeTopAssists(matches),
+    teamStats: computeTeamStats(matches),
     source: {
       provider,
       live: matches.some((m) => m.status === 'live'),

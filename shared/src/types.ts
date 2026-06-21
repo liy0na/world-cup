@@ -77,6 +77,28 @@ export interface TopScorer {
   matchesPlayed: number;
 }
 
+/** A row in the top-assists table. */
+export interface TopAssister {
+  rank: number;
+  playerId?: string;
+  player: string;
+  teamId: string;
+  assists: number;
+}
+
+/** Per-team tournament tallies, for the records/leaderboards section. */
+export interface TeamStats {
+  teamId: string;
+  played: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  /** Finished matches in which the team conceded zero. */
+  cleanSheets: number;
+  yellow: number;
+  /** Red cards (second-yellow send-offs + straight reds). */
+  red: number;
+}
+
 export interface Match {
   id: string;
   stage: Stage;
@@ -101,8 +123,18 @@ export interface Match {
   penalties?: { home: number; away: number };
   /** Goal events (scorers), when available from the live provider. */
   goals?: GoalEvent[];
+  /** Assists, attributed to the assisting player's team. */
+  assists?: AssistEvent[];
   /** Player ids who actually played (started or came on) — for games-played tallies. */
   lineup?: string[];
+}
+
+/** An assist in a match. */
+export interface AssistEvent {
+  teamId: string;
+  player: string;
+  playerId?: string;
+  minute: string;
 }
 
 export interface StandingRow {
@@ -215,6 +247,41 @@ export interface Qualification {
   byTeam: Record<string, TeamStatus>;
 }
 
+export type MatchEventType = 'goal' | 'penalty' | 'own' | 'yellow' | 'red' | 'sub' | 'var' | 'other';
+
+/** One entry in a match's play-by-play timeline. */
+export interface MatchTimelineEntry {
+  minute: string;
+  type: MatchEventType;
+  side?: 'home' | 'away';
+  text: string;
+}
+
+export interface LineupPlayer {
+  playerId: string;
+  name: string;
+  shirt?: number;
+  starter: boolean;
+}
+
+/**
+ * Rich, on-demand detail for a single match (lineups, timeline, venue, etc.),
+ * fetched lazily when a match is opened — never part of the snapshot.
+ */
+export interface MatchDetail {
+  matchId: string;
+  homeTeamId?: string;
+  awayTeamId?: string;
+  venue?: string;
+  city?: string;
+  attendance?: number;
+  referee?: string;
+  possession?: { home: number; away: number };
+  homeLineup: LineupPlayer[];
+  awayLineup: LineupPlayer[];
+  events: MatchTimelineEntry[];
+}
+
 /** The single payload the server caches and pushes to every browser. */
 export interface Snapshot {
   generatedAt: string;
@@ -227,6 +294,10 @@ export interface Snapshot {
   qualification: Qualification;
   /** Top scorers across all matches (Golden Boot race). */
   topScorers: TopScorer[];
+  /** Top assist providers across all matches. */
+  topAssists: TopAssister[];
+  /** Per-team tournament tallies for the records/leaderboards section. */
+  teamStats: TeamStats[];
   source: {
     /** Active data provider name. */
     provider: string;

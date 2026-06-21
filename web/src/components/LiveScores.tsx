@@ -7,6 +7,7 @@ import { slotDisplay } from '../lib/teamNames';
 import { slotCode, type TeamMap } from '../lib/teams';
 import type { Lang } from '../lib/i18n';
 import { useGoalFlash, type FlashSide } from '../hooks/useGoalFlash';
+import { MatchDetailModal } from './MatchDetailModal';
 
 interface Props {
   matches: Match[];
@@ -150,6 +151,7 @@ function MatchCard({
   lang,
   flash,
   showScorers,
+  onOpen,
 }: {
   match: Match;
   teams: TeamMap;
@@ -157,6 +159,7 @@ function MatchCard({
   lang: Lang;
   flash?: FlashSide;
   showScorers: boolean;
+  onOpen?: (m: Match) => void;
 }) {
   const live = match.status === 'live';
   const finished = match.status === 'finished';
@@ -167,9 +170,19 @@ function MatchCard({
   const goals = match.goals ?? [];
   const homeGoals = goals.filter((g) => g.teamId === match.home.teamId);
   const awayGoals = goals.filter((g) => g.teamId === match.away.teamId);
+  // Detail (lineups/timeline) only exists once a match has kicked off.
+  const clickable = !!onOpen && (live || finished);
 
   return (
-    <div className={`w-64 shrink-0 rounded-lg border bg-slate-900/50 p-3 ${flash ? 'goal-flash' : 'border-slate-800'}`}>
+    <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? () => onOpen!(match) : undefined}
+      onKeyDown={clickable ? (e) => (e.key === 'Enter' || e.key === ' ') && onOpen!(match) : undefined}
+      className={`w-64 shrink-0 rounded-lg border bg-slate-900/50 p-3 ${flash ? 'goal-flash' : 'border-slate-800'} ${
+        clickable ? 'cursor-pointer transition-colors hover:border-slate-600' : ''
+      }`}
+    >
       <div className="flex items-center justify-between mb-1.5 text-[10px] uppercase tracking-wider">
         <span className="text-slate-500">{tag}</span>
         {flash ? (
@@ -226,6 +239,7 @@ function Strip({
   lang,
   flash,
   showScorers,
+  onOpen,
 }: {
   title: string;
   badge?: ReactNode;
@@ -235,6 +249,7 @@ function Strip({
   lang: Lang;
   flash: Map<string, FlashSide>;
   showScorers: boolean;
+  onOpen: (m: Match) => void;
 }) {
   return (
     <section>
@@ -244,7 +259,16 @@ function Strip({
       </div>
       <div className="flex items-stretch gap-3 overflow-x-auto pb-2">
         {matches.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} t={t} lang={lang} flash={flash.get(m.id)} showScorers={showScorers} />
+          <MatchCard
+            key={m.id}
+            match={m}
+            teams={teams}
+            t={t}
+            lang={lang}
+            flash={flash.get(m.id)}
+            showScorers={showScorers}
+            onOpen={onOpen}
+          />
         ))}
       </div>
     </section>
@@ -254,6 +278,7 @@ function Strip({
 export function LiveScores({ matches, teams }: Props) {
   const { t, lang } = useI18n();
   const flash = useGoalFlash(matches);
+  const [selected, setSelected] = useState<Match | null>(null);
   const [showScorers, setShowScorers] = useState(
     () => typeof localStorage !== 'undefined' && localStorage.getItem('showScorers') === '1',
   );
@@ -279,7 +304,8 @@ export function LiveScores({ matches, teams }: Props) {
 
   // Only worth offering the toggle when some shown game actually has scorers.
   const hasGoals = [...live, ...recent].some((m) => m.goals && m.goals.length > 0);
-  const common = { teams, t, lang, flash, showScorers };
+  const common = { teams, t, lang, flash, showScorers, onOpen: setSelected };
+  const selectedMatch = selected ? (matches.find((m) => m.id === selected.id) ?? selected) : null;
   return (
     <div className="space-y-5">
       {hasGoals && (
@@ -309,6 +335,9 @@ export function LiveScores({ matches, teams }: Props) {
       {recent.length > 0 && <Strip title={t('recentResults')} matches={recent} {...common} />}
       {upcoming.length > 0 && (
         <Strip title={t('upcoming')} badge={<NextMatchTimer matches={group} />} matches={upcoming} {...common} />
+      )}
+      {selectedMatch && (
+        <MatchDetailModal match={selectedMatch} teams={teams} onClose={() => setSelected(null)} />
       )}
     </div>
   );

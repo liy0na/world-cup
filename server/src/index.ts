@@ -19,6 +19,7 @@ async function main(): Promise<void> {
     cache,
     webDist: config.webDist,
     health: () => poller.health(),
+    matchDetail: (id) => poller.getMatchDetail(id),
   });
 
   await app.listen({ host: config.host, port: config.port });
