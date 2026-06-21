@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeStandings, type Match, type Snapshot } from '@wc/shared';
 import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
@@ -13,6 +13,7 @@ import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
 import { timeAgo } from './lib/format';
 import { useI18n, type Lang } from './lib/i18n';
+import { encodeScenario, readScenarioFromHash, scenarioShareUrl } from './lib/scenarioUrl';
 import { teamMap } from './lib/teams';
 
 const CONN_COLOR: Record<ConnectionStatus, string> = {
@@ -47,11 +48,34 @@ export function App() {
   const { snapshot, status } = useLiveState();
   const [tab, setTab] = useState<Tab>('groups');
   const [draft, setDraft] = useState<Draft>({});
-  const [groupWhatIf, setGroupWhatIf] = useState<Scenario>({});
-  const [koResults, setKoResults] = useState<Scenario>({});
+  // Seed any scenario shared via the URL hash (#s=…) on first load.
+  const initial = useRef<{ group: Scenario; ko: Scenario } | undefined>(undefined);
+  if (!initial.current) initial.current = readScenarioFromHash() ?? { group: {}, ko: {} };
+  const [groupWhatIf, setGroupWhatIf] = useState<Scenario>(initial.current.group);
+  const [koResults, setKoResults] = useState<Scenario>(initial.current.ko);
   const [bracketEdit, setBracketEdit] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const scenario = useMemo(() => ({ ...groupWhatIf, ...koResults }), [groupWhatIf, koResults]);
+
+  // Keep the address bar in sync with the active scenario (replace, don't push history).
+  useEffect(() => {
+    const enc = encodeScenario(groupWhatIf, koResults);
+    const hash = enc ? `#s=${enc}` : '';
+    if (window.location.hash !== hash) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
+    }
+  }, [groupWhatIf, koResults]);
+
+  const copyScenarioLink = async () => {
+    try {
+      await navigator.clipboard.writeText(scenarioShareUrl(groupWhatIf, koResults));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
 
@@ -142,9 +166,14 @@ export function App() {
             {scenarioCount > 0 && tab !== 'whatif' && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-700/50 bg-emerald-900/20 px-4 py-2 text-sm">
                 <span className="text-emerald-200">{t('scenarioActive', { n: scenarioCount })}</span>
-                <button type="button" onClick={reset} className="text-emerald-300 underline hover:text-emerald-100">
-                  {t('clear')}
-                </button>
+                <div className="flex items-center gap-4">
+                  <button type="button" onClick={copyScenarioLink} className="text-emerald-300 hover:text-emerald-100">
+                    🔗 {copied ? t('linkCopied') : t('copyLink')}
+                  </button>
+                  <button type="button" onClick={reset} className="text-emerald-300 underline hover:text-emerald-100">
+                    {t('clear')}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -153,10 +182,12 @@ export function App() {
                 matches={snapshot!.matches}
                 teams={teams}
                 draft={draft}
-                committedCount={Object.keys(groupWhatIf).length}
+                committedCount={Object.keys(scenario).length}
                 onChange={setDraft}
                 onCalculate={calculate}
                 onReset={reset}
+                onShare={copyScenarioLink}
+                shared={copied}
               />
             )}
             {(tab === 'groups' || tab === 'bracket') && <LiveScores matches={view.matches} teams={teams} />}

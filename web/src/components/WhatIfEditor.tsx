@@ -15,6 +15,8 @@ interface Props {
   onChange: (draft: Draft) => void;
   onCalculate: () => void;
   onReset: () => void;
+  onShare: () => void;
+  shared: boolean;
 }
 
 function ScoreInput({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: Lang }) {
@@ -30,7 +32,7 @@ function ScoreInput({ value, onChange, lang }: { value: string; onChange: (v: st
   );
 }
 
-export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, onCalculate, onReset }: Props) {
+export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, onCalculate, onReset, onShare, shared }: Props) {
   const { t, lang } = useI18n();
   const editable = matches
     .filter((m) => m.stage === 'group' && m.status !== 'finished' && m.group)
@@ -65,13 +67,22 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
             {t('calculate', { n: filled })}
           </button>
           {committedCount > 0 && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
-            >
-              {t('reset')}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onShare}
+                className="rounded-md border border-emerald-700/60 px-3 py-1.5 text-sm text-emerald-300 hover:bg-emerald-900/30"
+              >
+                🔗 {shared ? t('linkCopied') : t('copyLink')}
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                {t('reset')}
+              </button>
+            </>
           )}
         </div>
       </div>
