@@ -89,7 +89,7 @@ export function App() {
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-[#0a0e16]/90 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3">
+        <div className="mx-auto max-w-[1700px] px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-baseline gap-3">
               <h1 className="text-lg font-bold tracking-tight text-white">{t('appTitle')}</h1>
@@ -130,7 +130,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5 space-y-6">
+      <main className="mx-auto max-w-[1700px] px-4 py-5 space-y-6">
         {!view ? (
           <div className="py-20 text-center text-slate-500">{t('loading')}</div>
         ) : (
@@ -160,7 +160,7 @@ export function App() {
 
             {tab === 'groups' && (
               <>
-                <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {view.groupTables.map((table) => (
                     <GroupTable key={table.group} table={table} teams={teams} qualification={view.qualification} />
                   ))}
@@ -195,7 +195,7 @@ export function App() {
         )}
       </main>
 
-      <footer className="mx-auto max-w-7xl px-4 py-6 text-xs text-slate-600">
+      <footer className="mx-auto max-w-[1700px] px-4 py-6 text-xs text-slate-600">
         <p>{t('footer', { provider: snapshot?.source.provider ?? '—' })}</p>
       </footer>
     </div>

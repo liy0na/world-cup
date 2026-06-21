@@ -11,14 +11,21 @@ interface Props {
   qualification: Qualification;
 }
 
+// `wide` columns (GF, GA) are hidden on phones and shown from md up; the rest
+// (P W D L GD Pts) are always visible. Auto layout sizes each number column to
+// its content, so with no Form column the table fits its card without scrolling.
 const COLS = [
-  ['P', 'played'],
-  ['W', 'won'],
-  ['D', 'drawn'],
-  ['L', 'lost'],
-  ['GD', 'gd'],
-  ['Pts', 'points'],
+  ['P', 'played', false],
+  ['W', 'won', false],
+  ['D', 'drawn', false],
+  ['L', 'lost', false],
+  ['GF', 'gf', true],
+  ['GA', 'ga', true],
+  ['GD', 'gd', false],
+  ['Pts', 'points', false],
 ] as const;
+
+const WIDE = 'hidden md:table-cell';
 
 export function GroupTable({ table, teams, qualification }: Props) {
   const { t, lang } = useI18n();
@@ -35,8 +42,8 @@ export function GroupTable({ table, teams, qualification }: Props) {
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-slate-500">
             <th className="py-1.5 ps-3 text-start font-medium">{t('colTeam')}</th>
-            {COLS.map(([label]) => (
-              <th key={label} className="py-1.5 px-1.5 text-end font-medium tabular-nums last:pe-3">
+            {COLS.map(([label, , wide]) => (
+              <th key={label} className={`py-1.5 px-2 md:px-2.5 text-end font-medium tabular-nums ${wide ? WIDE : ''}`}>
                 {label}
               </th>
             ))}
@@ -49,23 +56,28 @@ export function GroupTable({ table, teams, qualification }: Props) {
             const style = outlookStyle(status?.outlook, row.rank);
             return (
               <tr key={row.teamId} className="border-t border-slate-800/60 hover:bg-slate-800/30">
-                <td className={`py-1.5 ps-3 border-s-2 ${style.accent}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600 tabular-nums w-3 text-xs">{row.rank}</span>
+                <td className={`py-1.5 ps-3 pe-2 border-s-2 ${style.accent}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-slate-600 tabular-nums w-3 text-xs shrink-0">{row.rank}</span>
                     <Flag code={team?.code} />
-                    <span className="font-mono text-[11px] text-slate-400 w-9">{team?.code ?? row.teamId}</span>
-                    <span className="text-slate-200 truncate max-w-28">{teamName(team, lang) || row.teamId}</span>
+                    <span className="hidden font-mono text-[11px] text-slate-400 w-9 shrink-0 sm:inline">
+                      {team?.code ?? row.teamId}
+                    </span>
+                    <span className="text-slate-200 truncate max-w-28 md:max-w-none">{teamName(team, lang) || row.teamId}</span>
                     {style.marker && (
-                      <span className={`text-xs ${style.markerClass}`} title={t(`outlook.${status?.outlook ?? 'alive'}`)}>
+                      <span
+                        className={`shrink-0 text-xs ${style.markerClass}`}
+                        title={t(`outlook.${status?.outlook ?? 'alive'}`)}
+                      >
                         {style.marker}
                       </span>
                     )}
                   </div>
                 </td>
-                {COLS.map(([label, key]) => (
+                {COLS.map(([label, key, wide]) => (
                   <td
                     key={label}
-                    className={`py-1.5 px-1.5 text-end tabular-nums last:pe-3 ${
+                    className={`py-1.5 px-2 md:px-2.5 text-end tabular-nums ${wide ? WIDE : ''} ${
                       label === 'Pts' ? 'font-semibold text-slate-100' : 'text-slate-400'
                     }`}
                   >

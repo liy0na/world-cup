@@ -70,13 +70,13 @@ export function Scenarios({ groupTables, qualification, teams, matches }: Props)
                 const status = qualification.byTeam[row.teamId]!;
                 const key = needKey(status, remaining.get(row.teamId) ?? 0);
                 return (
-                  <li key={row.teamId} className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Flag code={team?.code} />
-                      <span className="font-mono text-[11px] text-slate-400 w-9">{team?.code ?? row.teamId}</span>
-                      <span className="text-sm text-slate-200 truncate">{teamName(team, lang) || row.teamId}</span>
+                  <li key={row.teamId} className="flex items-start gap-2 px-3 py-2">
+                    <Flag code={team?.code} className="mt-1" />
+                    <span className="mt-0.5 shrink-0 font-mono text-[11px] text-slate-400">{team?.code ?? row.teamId}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-slate-200">{teamName(team, lang) || row.teamId}</div>
+                      <p className={`mt-0.5 text-xs ${TONE[key]}`}>{t(key)}</p>
                     </div>
-                    <p className={`mt-0.5 ps-11 text-xs ${TONE[key]}`}>{t(key)}</p>
                   </li>
                 );
               })}
