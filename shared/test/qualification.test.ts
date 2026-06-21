@@ -70,6 +70,28 @@ describe('computeQualification — within-group clinching', () => {
     expect(q.byTeam['STR']!.outlook).toBe('won_group'); // STR wins H2H against any team it ties
   });
 
+  it('computes what an alive team needs in its last game', () => {
+    // Group of 4, each has played 2, one game left (a1 v a2, a3 v a4).
+    // a1: 4 pts (W,D), a2: 4 pts, a3: 1, a4: 1. a1 & a2 meet; a3/a4 can reach at most 4.
+    const teams = [team('a1', 'A'), team('a2', 'A'), team('a3', 'A'), team('a4', 'A')];
+    const matches = [
+      result('A', 'a1', 'a3', 1, 0),
+      result('A', 'a1', 'a4', 1, 1), // a1: 3+1 = 4
+      result('A', 'a2', 'a3', 1, 1),
+      result('A', 'a2', 'a4', 1, 0), // a2: 1+3 = 4
+      result('A', 'a3', 'a4', 0, 0), // a3: 0+0+1=1 done, a4: 1+0+0=1 done
+      result('A', 'a1', 'a2', 0, 0, { status: 'scheduled' }), // the decider
+    ];
+    const q = computeQualification(teams, matches);
+    // a3 and a4 are done on 1 pt and out; a1 & a2 (4 pts) settle top 2 between them.
+    // Whatever a1 does in its last game it is already top 2 (a3/a4 maxed at 1) -> not 'alive'.
+    expect(q.byTeam['a1']!.outlook).toBe('advanced');
+    // With both finishing well clear, a win/draw/loss all keep a1 in the top two.
+    expect(q.byTeam['a1']!.ifWin).toBe('in');
+    expect(q.byTeam['a1']!.ifDraw).toBe('in');
+    expect(q.byTeam['a1']!.ifLoss).toBe('in');
+  });
+
   it('flags a team locked into last place as eliminated', () => {
     const teams = [team('z1', 'B'), team('z2', 'B'), team('z3', 'B'), team('z4', 'B')];
     const matches = [

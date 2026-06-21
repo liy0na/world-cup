@@ -151,6 +151,9 @@ export type TeamOutlook =
   | 'eliminated' // cannot qualify by any route
   | 'alive'; // still in contention
 
+/** Whether a given last-game result puts a team in the top 2: guaranteed / possible / impossible. */
+export type NeedOutcome = 'in' | 'maybe' | 'out';
+
 export interface TeamStatus {
   teamId: string;
   group: GroupLetter;
@@ -161,6 +164,14 @@ export interface TeamStatus {
   maxRank: number;
   /** Set when the group finishing position is locked (minRank === maxRank). */
   clinchedRank?: number;
+  /**
+   * For a team with exactly one group game left: whether winning / drawing /
+   * losing that game lands it in the top two (top-2 path only; the best-third
+   * route is reflected by `outlook`).
+   */
+  ifWin?: NeedOutcome;
+  ifDraw?: NeedOutcome;
+  ifLoss?: NeedOutcome;
 }
 
 export interface Qualification {

@@ -1,12 +1,28 @@
 import type {
   GroupLetter,
   Match,
+  NeedOutcome,
   Qualification,
   Team,
   TeamStatus,
 } from './types';
 
 const QUALIFYING_THIRDS = 8;
+
+type Outcome = 0 | 1 | 2; // 0 home win, 1 draw, 2 away win
+interface Game {
+  h: string;
+  a: string;
+  o: Outcome;
+}
+
+function applyOutcome(pts: Map<string, number>, h: string, a: string, o: Outcome): void {
+  if (o === 0) pts.set(h, (pts.get(h) ?? 0) + 3);
+  else if (o === 1) {
+    pts.set(h, (pts.get(h) ?? 0) + 1);
+    pts.set(a, (pts.get(a) ?? 0) + 1);
+  } else pts.set(a, (pts.get(a) ?? 0) + 3);
+}
 
 function isRemaining(m: Match): boolean {
   return (m.status === 'scheduled' || m.status === 'live') && !!m.home.teamId && !!m.away.teamId;
@@ -22,6 +38,11 @@ function isFinished(m: Match): boolean {
 }
 
 interface GroupAnalysis {
+  ids: string[];
+  /** Finished games (fixed outcomes). */
+  finished: Game[];
+  /** Remaining games to enumerate. */
+  remaining: { h: string; a: string }[];
   teamRanks: Map<string, { minRank: number; maxRank: number }>;
   /** base + 3 * (remaining games for the team) — the most points still attainable. */
   maxPoints: Map<string, number>;
@@ -33,7 +54,23 @@ interface GroupAnalysis {
   thirdPossibleMaxPts: number;
 }
 
-type Outcome = 0 | 1 | 2; // 0 home win, 1 draw, 2 away win
+/**
+ * Best/worst finishing rank of a team in one fully-decided scenario. Rivals are
+ * ordered by points, then separated only by head-to-head points (criterion a,
+ * margin-independent); margin-dependent tiebreakers stay open (best vs worst).
+ */
+function rankFor(teamId: string, ids: string[], pts: Map<string, number>, games: Game[]): { best: number; worst: number } {
+  const p = pts.get(teamId)!;
+  const strictMore = ids.filter((o) => pts.get(o)! > p).length;
+  const tied = ids.filter((o) => pts.get(o)! === p);
+  if (tied.length === 1) return { best: strictMore + 1, worst: strictMore + 1 };
+  const h = new Map(tied.map((id) => [id, 0]));
+  for (const g of games) awardH2H(h, g.h, g.a, g.o);
+  const mine = h.get(teamId)!;
+  const guaranteedAbove = tied.filter((o) => o !== teamId && h.get(o)! > mine).length;
+  const notBelow = tied.filter((o) => h.get(o)! >= mine).length; // includes self
+  return { best: strictMore + guaranteedAbove + 1, worst: strictMore + notBelow };
+}
 
 /** Award head-to-head points, but only for matches BETWEEN two teams in the tied set. */
 function awardH2H(acc: Map<string, number>, h: string, a: string, o: Outcome): void {
@@ -95,41 +132,19 @@ function analyseGroup(groupTeams: Team[], group: GroupLetter, matches: Match[]):
   const k = remaining.length;
   const scenarios = 3 ** k;
   for (let s = 0; s < scenarios; s++) {
-    const outcomes = remaining.map((_, i) => (Math.floor(s / 3 ** i) % 3) as Outcome);
+    const games: Game[] = [...finished];
     const pts = new Map(base);
     remaining.forEach((m, i) => {
-      const o = outcomes[i]!;
-      if (o === 0) pts.set(m.h, pts.get(m.h)! + 3);
-      else if (o === 1) {
-        pts.set(m.h, pts.get(m.h)! + 1);
-        pts.set(m.a, pts.get(m.a)! + 1);
-      } else pts.set(m.a, pts.get(m.a)! + 3);
+      const o = (Math.floor(s / 3 ** i) % 3) as Outcome;
+      applyOutcome(pts, m.h, m.a, o);
+      games.push({ h: m.h, a: m.a, o });
     });
 
-    // Head-to-head points (criterion a) among each set of teams tied on points.
-    const h2hPts = (tied: string[]): Map<string, number> => {
-      const acc = new Map(tied.map((id) => [id, 0]));
-      for (const g of finished) awardH2H(acc, g.h, g.a, g.o);
-      remaining.forEach((m, i) => awardH2H(acc, m.h, m.a, outcomes[i]!));
-      return acc;
-    };
-
     for (const id of ids) {
-      const p = pts.get(id)!;
-      const tied = ids.filter((o) => pts.get(o)! === p);
-      const strictMore = ids.filter((o) => pts.get(o)! > p).length;
-      const h = tied.length > 1 ? h2hPts(tied) : new Map([[id, 0]]);
-      const mine = h.get(id) ?? 0;
-      // Guaranteed above: rivals that beat me on head-to-head points (margin-independent).
-      const guaranteedAbove = tied.filter((o) => o !== id && (h.get(o) ?? 0) > mine).length;
-      // Could be above-or-level: rivals I do NOT strictly beat head-to-head (plus myself).
-      const notBelow = tied.filter((o) => (h.get(o) ?? 0) >= mine).length;
-
-      const bestRank = strictMore + guaranteedAbove + 1;
-      const worstRank = strictMore + notBelow;
+      const { best, worst } = rankFor(id, ids, pts, games);
       const r = teamRanks.get(id)!;
-      if (bestRank < r.minRank) r.minRank = bestRank;
-      if (worstRank > r.maxRank) r.maxRank = worstRank;
+      if (best < r.minRank) r.minRank = best;
+      if (worst > r.maxRank) r.maxRank = worst;
     }
 
     const sortedPts = ids.map((id) => pts.get(id)!).sort((x, y) => y - x);
@@ -138,7 +153,43 @@ function analyseGroup(groupTeams: Team[], group: GroupLetter, matches: Match[]):
     thirdPossibleMaxPts = Math.max(thirdPossibleMaxPts, thirdPts);
   }
 
-  return { teamRanks, maxPoints, basePoints: base, thirdGuaranteedPts, thirdPossibleMaxPts };
+  return { ids, finished, remaining, teamRanks, maxPoints, basePoints: base, thirdGuaranteedPts, thirdPossibleMaxPts };
+}
+
+/**
+ * For a team with exactly one remaining group game, whether winning / drawing /
+ * losing it lands the team in the top two — enumerating the group's other
+ * remaining games for each of the team's three outcomes.
+ */
+function computeNeed(a: GroupAnalysis, teamId: string): Pick<TeamStatus, 'ifWin' | 'ifDraw' | 'ifLoss'> | undefined {
+  const mine = a.remaining.filter((r) => r.h === teamId || r.a === teamId);
+  if (mine.length !== 1) return undefined;
+  const myMatch = mine[0]!;
+  const others = a.remaining.filter((r) => r !== myMatch);
+  const isHome = myMatch.h === teamId;
+  const outcomeOf = (res: 'win' | 'draw' | 'loss'): Outcome =>
+    res === 'draw' ? 1 : res === 'win' ? (isHome ? 0 : 2) : isHome ? 2 : 0;
+
+  const evaluate = (res: 'win' | 'draw' | 'loss'): NeedOutcome => {
+    let allGuaranteed = true;
+    let anyPossible = false;
+    for (let s = 0; s < 3 ** others.length; s++) {
+      const pts = new Map(a.basePoints);
+      const games: Game[] = [...a.finished, { h: myMatch.h, a: myMatch.a, o: outcomeOf(res) }];
+      applyOutcome(pts, myMatch.h, myMatch.a, outcomeOf(res));
+      others.forEach((m, i) => {
+        const o = (Math.floor(s / 3 ** i) % 3) as Outcome;
+        applyOutcome(pts, m.h, m.a, o);
+        games.push({ h: m.h, a: m.a, o });
+      });
+      const { best, worst } = rankFor(teamId, a.ids, pts, games);
+      if (best <= 2) anyPossible = true;
+      if (worst > 2) allGuaranteed = false;
+    }
+    return allGuaranteed ? 'in' : anyPossible ? 'maybe' : 'out';
+  };
+
+  return { ifWin: evaluate('win'), ifDraw: evaluate('draw'), ifLoss: evaluate('loss') };
 }
 
 function classify(
@@ -197,7 +248,7 @@ export function computeQualification(teams: Team[], matches: Match[]): Qualifica
     for (const team of teams.filter((t) => t.group === g)) {
       const rank = own.teamRanks.get(team.id);
       if (!rank) continue;
-      byTeam[team.id] = classify(team, rank, own, others);
+      byTeam[team.id] = { ...classify(team, rank, own, others), ...computeNeed(own, team.id) };
     }
   }
   return { byTeam };

@@ -3,6 +3,7 @@ import { computeStandings, type Match, type Snapshot } from '@wc/shared';
 import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
 import { LiveScores } from './components/LiveScores';
+import { Scenarios } from './components/Scenarios';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
@@ -164,6 +165,7 @@ export function App() {
                     <GroupTable key={table.group} table={table} teams={teams} qualification={view.qualification} />
                   ))}
                 </section>
+                <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
                 <section className="max-w-2xl">
                   <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} />
                 </section>
