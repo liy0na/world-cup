@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function ThirdPlaceTable({ ranking, teams }: Props) {
-  const { t, lang } = useI18n();
+  const { t, lang, num } = useI18n();
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
       <div className="px-3 py-2 border-b border-slate-800 bg-slate-900/60">
@@ -44,7 +44,7 @@ export function ThirdPlaceTable({ ranking, teams }: Props) {
                       row.qualifies ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'
                     }`}
                   >
-                    {row.rank}
+                    {num(row.rank)}
                   </span>
                 </td>
                 <td className="py-1.5 text-slate-400 font-mono text-xs">{row.group}</td>
@@ -55,11 +55,11 @@ export function ThirdPlaceTable({ ranking, teams }: Props) {
                     <span className="text-slate-200">{teamName(team, lang) || row.teamId}</span>
                   </span>
                 </td>
-                <td className="py-1.5 px-1.5 text-end tabular-nums font-semibold text-slate-100">{row.points}</td>
+                <td className="py-1.5 px-1.5 text-end tabular-nums font-semibold text-slate-100">{num(row.points)}</td>
                 <td className="py-1.5 px-1.5 text-end tabular-nums text-slate-400">
-                  {row.gd > 0 ? `+${row.gd}` : row.gd}
+                  <span dir="ltr">{num(row.gd > 0 ? `+${row.gd}` : String(row.gd))}</span>
                 </td>
-                <td className="py-1.5 px-3 text-end tabular-nums text-slate-400">{row.gf}</td>
+                <td className="py-1.5 px-3 text-end tabular-nums text-slate-400">{num(row.gf)}</td>
               </tr>
             );
           })}

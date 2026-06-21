@@ -1,6 +1,6 @@
 import type { Match } from '@wc/shared';
 import { Flag } from '../lib/flags';
-import { useI18n } from '../lib/i18n';
+import { fmtNum, useI18n } from '../lib/i18n';
 import { kickoffDay, kickoffLabel } from '../lib/format';
 import { slotDisplay } from '../lib/teamNames';
 import { slotCode, type TeamMap } from '../lib/teams';
@@ -30,7 +30,7 @@ function MatchCard({ match, teams, t, lang }: { match: Match; teams: TeamMap; t:
         {live ? (
           <span className="flex items-center gap-1 text-red-400">
             <span className="live-dot h-1.5 w-1.5 rounded-full bg-red-500" />
-            {match.minute ? `${match.minute}'` : t('live')}
+            {match.minute ? `${fmtNum(match.minute, lang)}'` : t('live')}
           </span>
         ) : finished ? (
           <span className="text-slate-500">{t('ft')}</span>
@@ -40,13 +40,13 @@ function MatchCard({ match, teams, t, lang }: { match: Match; teams: TeamMap; t:
           </span>
         )}
       </div>
-      <Row code={slotCode(match.home, teams)} name={slotDisplay(match.home, teams, lang, t)} score={match.homeScore} show={hasScore} live={live} />
-      <Row code={slotCode(match.away, teams)} name={slotDisplay(match.away, teams, lang, t)} score={match.awayScore} show={hasScore} live={live} />
+      <Row code={slotCode(match.home, teams)} name={slotDisplay(match.home, teams, lang, t)} score={match.homeScore} show={hasScore} live={live} lang={lang} />
+      <Row code={slotCode(match.away, teams)} name={slotDisplay(match.away, teams, lang, t)} score={match.awayScore} show={hasScore} live={live} lang={lang} />
     </div>
   );
 }
 
-function Row({ code, name, score, show, live }: { code: string; name: string; score?: number; show: boolean; live: boolean }) {
+function Row({ code, name, score, show, live, lang }: { code: string; name: string; score?: number; show: boolean; live: boolean; lang: Lang }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <div className="flex items-center gap-2 min-w-0">
@@ -55,7 +55,7 @@ function Row({ code, name, score, show, live }: { code: string; name: string; sc
         <span className="text-sm text-slate-200 truncate">{name}</span>
       </div>
       <span className={`tabular-nums text-sm font-semibold ${live ? 'text-red-300' : 'text-slate-100'}`}>
-        {show ? score : '–'}
+        {show && typeof score === 'number' ? fmtNum(score, lang) : '–'}
       </span>
     </div>
   );

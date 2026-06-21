@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { Bracket as BracketType, BracketMatch, Qualification, SlotRef } from '@wc/shared';
 import { Flag } from '../lib/flags';
-import { useI18n, type Lang } from '../lib/i18n';
+import { fmtNum, toLatinDigits, useI18n, type Lang } from '../lib/i18n';
 import { bracketNameClass } from '../lib/status';
 import { slotDisplay } from '../lib/teamNames';
 import { isResolved, slotCode, type TeamMap } from '../lib/teams';
@@ -53,14 +53,24 @@ function Connector() {
   );
 }
 
-function Num({ value, onChange, label }: { value: number | undefined; onChange: (v: string) => void; label: string }) {
+function Num({
+  value,
+  onChange,
+  label,
+  lang,
+}: {
+  value: number | undefined;
+  onChange: (v: string) => void;
+  label: string;
+  lang: Lang;
+}) {
   return (
     <input
       type="text"
       inputMode="numeric"
       aria-label={label}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+      value={value === undefined ? '' : fmtNum(value, lang)}
+      onChange={(e) => onChange(toLatinDigits(e.target.value).replace(/[^0-9]/g, ''))}
       className="w-8 rounded border border-slate-700 bg-slate-950 px-0.5 text-center text-[13px] tabular-nums text-slate-100 focus:border-emerald-500 focus:outline-none"
     />
   );
@@ -104,9 +114,9 @@ function SlotLine({
         {isWinner && <span className="text-emerald-400 text-[11px]">✓</span>}
       </div>
       {editable && resolved ? (
-        <Num value={score} onChange={onScore} label="score" />
+        <Num value={score} onChange={onScore} label="score" lang={lang} />
       ) : (
-        <span className="tabular-nums text-[13px] text-slate-300">{typeof score === 'number' ? score : ''}</span>
+        <span className="tabular-nums text-[13px] text-slate-300">{typeof score === 'number' ? fmtNum(score, lang) : ''}</span>
       )}
     </div>
   );
@@ -145,7 +155,7 @@ function MatchCard({
     <div className={`w-52 shrink-0 rounded-lg border bg-slate-900/60 ${live ? 'border-red-500/50' : 'border-slate-800'}`}>
       <div className="flex items-center justify-between px-2 pt-1 text-[9px] uppercase tracking-wider text-slate-600">
         <span>
-          {SHORT[match.stage]} · M{match.matchNumber}
+          {SHORT[match.stage]} · M{fmtNum(match.matchNumber, lang)}
         </span>
         <span className="flex items-center gap-1">
           {match.afterExtraTime && <span className="text-slate-500">{t('aet')}</span>}
@@ -172,9 +182,9 @@ function MatchCard({
       {editable && bothResolved && level ? (
         <div className="flex items-center gap-2 border-t border-slate-800/60 px-2 py-1 text-[11px]">
           <span className="text-slate-500">{t('pens')}</span>
-          <Num value={result?.penH} onChange={(v) => onChange(id, { penH: v === '' ? undefined : Number(v) })} label="home penalties" />
+          <Num value={result?.penH} onChange={(v) => onChange(id, { penH: v === '' ? undefined : Number(v) })} label="home penalties" lang={lang} />
           <span className="text-slate-600">–</span>
-          <Num value={result?.penA} onChange={(v) => onChange(id, { penA: v === '' ? undefined : Number(v) })} label="away penalties" />
+          <Num value={result?.penA} onChange={(v) => onChange(id, { penA: v === '' ? undefined : Number(v) })} label="away penalties" lang={lang} />
           <label className="ms-auto flex items-center gap-1 text-slate-500">
             <input type="checkbox" checked={Boolean(result?.et)} onChange={(e) => onChange(id, { et: e.target.checked })} className="accent-emerald-500" />
             {t('aet')}
@@ -182,7 +192,7 @@ function MatchCard({
         </div>
       ) : !editable && match.penalties ? (
         <div className="border-t border-slate-800/60 px-2 py-0.5 text-end text-[10px] text-slate-500">
-          {t('pens')} {match.penalties.home}–{match.penalties.away}
+          {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
         </div>
       ) : null}
     </div>

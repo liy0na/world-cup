@@ -39,7 +39,7 @@ function applyScenario(snapshot: Snapshot, scenario: Scenario): Snapshot {
 }
 
 export function App() {
-  const { t, lang, setLang } = useI18n();
+  const { t, lang, setLang, num } = useI18n();
   const { snapshot, status } = useLiveState();
   const [tab, setTab] = useState<Tab>('groups');
   const [draft, setDraft] = useState<Draft>({});
@@ -122,7 +122,7 @@ export function App() {
               >
                 {t(`tab.${key}`)}
                 {key === 'whatif' && scenarioCount > 0 && (
-                  <span className="mx-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{scenarioCount}</span>
+                  <span className="mx-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{num(scenarioCount)}</span>
                 )}
               </button>
             ))}

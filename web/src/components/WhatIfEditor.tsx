@@ -1,7 +1,7 @@
 import type { Match } from '@wc/shared';
 import { Flag } from '../lib/flags';
 import { kickoffDay } from '../lib/format';
-import { useI18n } from '../lib/i18n';
+import { fmtNum, toLatinDigits, useI18n, type Lang } from '../lib/i18n';
 import { slotDisplay } from '../lib/teamNames';
 import { slotCode, type TeamMap } from '../lib/teams';
 
@@ -17,14 +17,14 @@ interface Props {
   onReset: () => void;
 }
 
-function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ScoreInput({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: Lang }) {
   return (
     <input
       type="text"
       inputMode="numeric"
       aria-label="score"
-      value={value}
-      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+      value={fmtNum(value, lang)}
+      onChange={(e) => onChange(toLatinDigits(e.target.value).replace(/[^0-9]/g, ''))}
       className="w-10 rounded-md border border-slate-700 bg-slate-950 px-1 py-0.5 text-center text-sm tabular-nums text-slate-100 focus:border-emerald-500 focus:outline-none"
     />
   );
@@ -100,9 +100,9 @@ export function WhatIfEditor({ matches, teams, draft, committedCount, onChange, 
                         </span>
                         <Flag code={slotCode(m.home, teams)} />
                       </div>
-                      <ScoreInput value={d.h} onChange={(v) => set(m.id, 'h', v)} />
+                      <ScoreInput value={d.h} onChange={(v) => set(m.id, 'h', v)} lang={lang} />
                       <span className="text-slate-600">–</span>
-                      <ScoreInput value={d.a} onChange={(v) => set(m.id, 'a', v)} />
+                      <ScoreInput value={d.a} onChange={(v) => set(m.id, 'a', v)} lang={lang} />
                       <div className="flex min-w-0 flex-1 items-center gap-1.5 text-slate-200">
                         <Flag code={slotCode(m.away, teams)} />
                         <span className="truncate">

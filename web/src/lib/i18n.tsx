@@ -154,11 +154,31 @@ const fa: Dict = {
 
 const DICTS: Record<Lang, Dict> = { en, fa };
 
+// Western (Latin) digits -> Persian (Extended Arabic-Indic) digits ۰۱۲…
+const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+function toFaDigits(s: string): string {
+  return s.replace(/[0-9]/g, (d) => FA_DIGITS.charAt(Number(d)));
+}
+
+/** Localise a number for display: Persian numerals in `fa`, Latin otherwise. */
+export function fmtNum(value: number | string, lang: Lang): string {
+  return lang === 'fa' ? toFaDigits(String(value)) : String(value);
+}
+
+/** Convert Persian (۰-۹) / Arabic-Indic (٠-٩) digits back to Latin, for parsing typed input. */
+export function toLatinDigits(s: string): string {
+  return s.replace(/[۰-۹٠-٩]/g, (d) => {
+    const c = d.charCodeAt(0);
+    return String(c >= 0x06f0 ? c - 0x06f0 : c - 0x0660);
+  });
+}
+
 interface I18n {
   lang: Lang;
   dir: 'ltr' | 'rtl';
   setLang: (l: Lang) => void;
   t: (key: string, params?: Params) => string;
+  num: (value: number | string) => string;
 }
 
 const Ctx = createContext<I18n | null>(null);
@@ -166,6 +186,7 @@ const Ctx = createContext<I18n | null>(null);
 function translate(lang: Lang, key: string, params?: Params): string {
   let s = DICTS[lang][key] ?? DICTS.en[key] ?? key;
   if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
+  if (lang === 'fa') s = toFaDigits(s); // localise any interpolated counts (e.g. "{n} live")
   return s;
 }
 
@@ -194,6 +215,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     dir: lang === 'fa' ? 'rtl' : 'ltr',
     setLang,
     t: (key, params) => translate(lang, key, params),
+    num: (value) => fmtNum(value, lang),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

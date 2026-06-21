@@ -28,7 +28,7 @@ const COLS = [
 const WIDE = 'hidden md:table-cell';
 
 export function GroupTable({ table, teams, qualification }: Props) {
-  const { t, lang } = useI18n();
+  const { t, lang, num } = useI18n();
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900/60">
@@ -58,7 +58,7 @@ export function GroupTable({ table, teams, qualification }: Props) {
               <tr key={row.teamId} className="border-t border-slate-800/60 hover:bg-slate-800/30">
                 <td className={`py-1.5 ps-3 pe-2 border-s-2 ${style.accent}`}>
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-slate-600 tabular-nums w-3 text-xs shrink-0">{row.rank}</span>
+                    <span className="text-slate-600 tabular-nums w-3 text-xs shrink-0">{num(row.rank)}</span>
                     <Flag code={team?.code} />
                     <span className="hidden font-mono text-[11px] text-slate-400 w-9 shrink-0 sm:inline">
                       {team?.code ?? row.teamId}
@@ -74,16 +74,20 @@ export function GroupTable({ table, teams, qualification }: Props) {
                     )}
                   </div>
                 </td>
-                {COLS.map(([label, key, wide]) => (
-                  <td
-                    key={label}
-                    className={`py-1.5 px-2 md:px-2.5 text-end tabular-nums ${wide ? WIDE : ''} ${
-                      label === 'Pts' ? 'font-semibold text-slate-100' : 'text-slate-400'
-                    }`}
-                  >
-                    {key === 'gd' && row.gd > 0 ? `+${row.gd}` : row[key]}
-                  </td>
-                ))}
+                {COLS.map(([label, key, wide]) => {
+                  const text = num(key === 'gd' && row.gd > 0 ? `+${row.gd}` : String(row[key]));
+                  return (
+                    <td
+                      key={label}
+                      className={`py-1.5 px-2 md:px-2.5 text-end tabular-nums ${wide ? WIDE : ''} ${
+                        label === 'Pts' ? 'font-semibold text-slate-100' : 'text-slate-400'
+                      }`}
+                    >
+                      {/* dir=ltr keeps the +/- sign before the number in RTL (Persian). */}
+                      {key === 'gd' ? <span dir="ltr">{text}</span> : text}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
