@@ -44,6 +44,21 @@ export interface SlotRef {
   teamId?: string;
 }
 
+export type GoalKind = 'goal' | 'penalty' | 'own';
+
+/** A single goal in a match, attributed to the team it counts for. */
+export interface GoalEvent {
+  /** Team id the goal counts FOR (an own goal counts for the opponent). */
+  teamId: string;
+  /** Scorer display name. */
+  player: string;
+  /** Match minute, e.g. "23'" or "45'+2'". */
+  minute: string;
+  kind: GoalKind;
+  /** Chronological order within the match (0-based), for stable display. */
+  order: number;
+}
+
 export interface Match {
   id: string;
   stage: Stage;
@@ -66,6 +81,8 @@ export interface Match {
   afterExtraTime?: boolean;
   /** Knockout only: penalty-shootout score, used to decide a level match. */
   penalties?: { home: number; away: number };
+  /** Goal events (scorers), when available from the live provider. */
+  goals?: GoalEvent[];
 }
 
 export interface StandingRow {

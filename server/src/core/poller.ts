@@ -1,14 +1,17 @@
 import type { Snapshot } from '@wc/shared';
 import type { Config } from '../config';
+import { GoalTracker } from '../pipeline/goals';
 import { mergeLive } from '../pipeline/matchStore';
 import { buildSnapshot } from '../pipeline/snapshot';
 import type { Providers } from '../providers';
-import type { Schedule } from '../providers/provider';
+import type { LiveObservation, MatchRef, Schedule } from '../providers/provider';
 import type { SnapshotCache } from './cache';
 import { RateLimiter } from './rateLimiter';
 
 const BACKBONE_TTL_MS = 10 * 60_000;
 const MATCH_WINDOW_MS = 3 * 60 * 60_000;
+/** Concurrency for goal-timeline fetches (the cold start backfills every finished game). */
+const GOAL_FETCH_CONCURRENCY = 6;
 
 /**
  * The single poller. It decouples two clocks: how often we call upstream (this
@@ -23,6 +26,8 @@ export class Poller {
   private stopped = false;
   private lastError: string | undefined;
   private readonly liveLimiter: RateLimiter;
+  private readonly goals = new GoalTracker();
+  private goalsSeeded = false;
 
   constructor(
     private readonly providers: Providers,
@@ -75,21 +80,35 @@ export class Poller {
       await this.loadBackbone();
       const schedule = this.schedule!;
 
+      // Seed the scorer cache from the last-good snapshot so restarts keep goals.
+      if (!this.goalsSeeded) {
+        const prev = this.cache.get();
+        if (prev) this.goals.seed(prev.matches);
+        this.goalsSeeded = true;
+      }
+
       let providerLabel = this.providers.backbone.name;
       let live = schedule.matches;
       const liveProvider = this.providers.live;
       if (liveProvider && this.liveLimiter.tryAcquire()) {
         // Finished results (so a game's score survives leaving the live feed) + in-play overlay.
-        const observations = [
-          ...(liveProvider.loadResults ? await liveProvider.loadResults() : []),
-          ...(liveProvider.loadLive ? await liveProvider.loadLive() : []),
-        ];
+        let results: LiveObservation[] = [];
+        let refs: MatchRef[] = [];
+        if (liveProvider.loadCalendar) {
+          ({ results, refs } = await liveProvider.loadCalendar());
+        } else if (liveProvider.loadResults) {
+          results = await liveProvider.loadResults();
+        }
+        const observations = [...results, ...(liveProvider.loadLive ? await liveProvider.loadLive() : [])];
         if (observations.length > 0) {
           live = mergeLive(schedule, observations);
           providerLabel = `${this.providers.backbone.name} + ${liveProvider.name}`;
         }
+        // Overlay scorers: live games (refreshed) + finished games (backfilled, newest first).
+        if (refs.length > 0) await this.goals.update(live, refs, liveProvider, GOAL_FETCH_CONCURRENCY);
       }
 
+      live = this.goals.attach(live);
       const snapshot = buildSnapshot(schedule.teams, live, providerLabel);
       if (this.hasChanged(snapshot)) await this.cache.set(snapshot);
       this.lastError = undefined;

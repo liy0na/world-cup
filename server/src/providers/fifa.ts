@@ -1,5 +1,5 @@
 import { fetchJson } from '../util/fetchJson';
-import type { DataProvider, LiveObservation, Schedule } from './provider';
+import type { DataProvider, LiveObservation, MatchRef, ObservedGoal, Schedule } from './provider';
 
 // FIFA World Cup = competition 17; the 2026 edition = season 285023.
 const WORLD_CUP_COMPETITION = '17';
@@ -37,6 +37,8 @@ interface FifaLiveResponse {
 interface FifaCalendarMatch {
   IdCompetition?: string;
   IdSeason?: string;
+  IdStage?: string;
+  IdMatch?: string;
   ResultType?: number;
   Home?: FifaTeam | null;
   Away?: FifaTeam | null;
@@ -45,6 +47,28 @@ interface FifaCalendarMatch {
 }
 interface FifaCalendarResponse {
   Results?: FifaCalendarMatch[];
+}
+
+// Match-detail endpoint: per-side Goals arrays (direct attribution) + lineups
+// (to resolve a scorer's IdPlayer to a name).
+interface FifaPlayer {
+  IdPlayer?: string;
+  PlayerName?: FifaLocalised[];
+  ShortName?: FifaLocalised[];
+}
+interface FifaGoal {
+  // 1 = penalty, 3 = own goal, anything else (typically 2) = normal goal.
+  Type?: number;
+  IdPlayer?: string;
+  Minute?: string;
+}
+interface FifaTeamDetail {
+  Goals?: FifaGoal[] | null;
+  Players?: FifaPlayer[] | null;
+}
+interface FifaMatchDetail {
+  HomeTeam?: FifaTeamDetail | null;
+  AwayTeam?: FifaTeamDetail | null;
 }
 
 function pickName(team: FifaTeam | null | undefined): string | undefined {
@@ -74,6 +98,45 @@ function toObservation(match: FifaMatch): LiveObservation | undefined {
     awayScore: match.AwayTeam?.Score ?? undefined,
     minute: parseMinute(match.MatchTime),
   };
+}
+
+function refOf(m: FifaCalendarMatch): MatchRef | undefined {
+  if (m.IdCompetition && m.IdCompetition !== WORLD_CUP_COMPETITION) return undefined;
+  if (m.IdSeason && m.IdSeason !== WORLD_CUP_SEASON_2026) return undefined;
+  if (!m.IdStage || !m.IdMatch) return undefined;
+  return {
+    idStage: m.IdStage,
+    idMatch: m.IdMatch,
+    homeCode: m.Home?.Abbreviation,
+    awayCode: m.Away?.Abbreviation,
+    finished: m.ResultType === 1,
+  };
+}
+
+function goalKind(type?: number): ObservedGoal['kind'] {
+  return type === 1 ? 'penalty' : type === 3 ? 'own' : 'goal';
+}
+
+/** "RAUL JIMENEZ" / "Raul JIMENEZ" -> "Raul Jimenez" (title-case ALL-CAPS tokens only). */
+function tidyName(s: string): string {
+  return s
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w.length > 1 && w === w.toUpperCase() ? w.charAt(0) + w.slice(1).toLowerCase() : w))
+    .join(' ');
+}
+
+function playerName(p: FifaPlayer): string {
+  const pick = (arr?: FifaLocalised[]) =>
+    arr?.find((n) => n.Locale?.toLowerCase().startsWith('en'))?.Description ?? arr?.[0]?.Description;
+  return tidyName(pick(p.ShortName) ?? pick(p.PlayerName) ?? '');
+}
+
+/** Sortable minute: "45'+2'" -> 45.02, "23'" -> 23. */
+function minuteSort(min: string): number {
+  const m = min.match(/(\d+)(?:\D*\+\s*(\d+))?/);
+  if (!m) return 0;
+  return Number(m[1]) + (m[2] ? Number(m[2]) / 100 : 0);
 }
 
 /** Map a finished (ResultType === 1) calendar match to a result observation. */
@@ -132,13 +195,47 @@ export class FifaLiveProvider implements DataProvider {
   }
 
   async loadResults(): Promise<LiveObservation[]> {
+    return (await this.loadCalendar()).results;
+  }
+
+  /** One calendar pass: finished results + a ref for every match (used for goal fetches). */
+  async loadCalendar(): Promise<{ results: LiveObservation[]; refs: MatchRef[] }> {
     try {
       const url = `${this.base}/calendar/matches?idCompetition=${WORLD_CUP_COMPETITION}&idSeason=${WORLD_CUP_SEASON_2026}&count=500&language=en`;
       const res = await fetchJson<FifaCalendarResponse>(url, { timeoutMs: 12_000 });
-      const results = Array.isArray(res.Results) ? res.Results : [];
-      return results.map(toResult).filter((o): o is LiveObservation => o !== undefined);
+      const matches = Array.isArray(res.Results) ? res.Results : [];
+      return {
+        results: matches.map(toResult).filter((o): o is LiveObservation => o !== undefined),
+        refs: matches.map(refOf).filter((r): r is MatchRef => r !== undefined),
+      };
     } catch (err) {
       console.warn(`[fifa-results] fetch failed (ignored): ${(err as Error).message}`);
+      return { results: [], refs: [] };
+    }
+  }
+
+  /** Goal events for one match, oriented to the upstream home/away and ordered by minute. */
+  async loadMatchGoals(ref: MatchRef): Promise<ObservedGoal[]> {
+    try {
+      const url = `${this.base}/live/football/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
+      const d = await fetchJson<FifaMatchDetail>(url, { timeoutMs: 10_000 });
+      const names = new Map<string, string>();
+      for (const side of [d.HomeTeam, d.AwayTeam]) {
+        for (const p of side?.Players ?? []) if (p.IdPlayer) names.set(p.IdPlayer, playerName(p));
+      }
+      const collect = (side: 'home' | 'away', goals: FifaGoal[] | null | undefined) =>
+        (goals ?? []).map((g) => ({
+          side,
+          kind: goalKind(g.Type),
+          minute: g.Minute ?? '',
+          player: (g.IdPlayer ? names.get(g.IdPlayer) : undefined) ?? '',
+          sort: minuteSort(g.Minute ?? ''),
+        }));
+      const all = [...collect('home', d.HomeTeam?.Goals), ...collect('away', d.AwayTeam?.Goals)];
+      all.sort((a, b) => a.sort - b.sort);
+      return all.map(({ side, player, minute, kind }, order) => ({ side, player, minute, kind, order }));
+    } catch (err) {
+      console.warn(`[fifa-goals] fetch failed (ignored): ${(err as Error).message}`);
       return [];
     }
   }

@@ -25,6 +25,27 @@ export interface LiveObservation {
   finished?: boolean;
 }
 
+/** Identifies a match in the upstream feed so its goal timeline can be fetched. */
+export interface MatchRef {
+  idStage: string;
+  idMatch: string;
+  /** FIFA 3-letter codes of the upstream home/away teams. */
+  homeCode?: string;
+  awayCode?: string;
+  finished: boolean;
+}
+
+/** A goal as reported upstream, with side relative to the upstream home/away. */
+export interface ObservedGoal {
+  side: 'home' | 'away';
+  player: string;
+  /** Match minute, e.g. "23'" or "45'+2'". */
+  minute: string;
+  kind: 'goal' | 'penalty' | 'own';
+  /** Chronological order within the match (0-based). */
+  order: number;
+}
+
 export interface DataProvider {
   readonly name: string;
   /** Static backbone: teams, groups, the full fixture list with any results so far. */
@@ -33,6 +54,10 @@ export interface DataProvider {
   loadLive?(): Promise<LiveObservation[]>;
   /** Finished matches with final scores (so results aren't lost when a game leaves the live feed). */
   loadResults?(): Promise<LiveObservation[]>;
+  /** One pass over the calendar: finished results plus a ref for every match (for goal fetches). */
+  loadCalendar?(): Promise<{ results: LiveObservation[]; refs: MatchRef[] }>;
+  /** Goal events (scorers) for one match. */
+  loadMatchGoals?(ref: MatchRef): Promise<ObservedGoal[]>;
 }
 
 /** FIFA 3-letter codes for the 48 finalists (used as stable team ids). */

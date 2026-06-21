@@ -56,7 +56,7 @@ export function Flag({ code, className = '' }: { code: string | undefined; class
   if (!iso) return null;
   return (
     <span
-      className={`fi fi-${iso} shrink-0 rounded-[2px] ${className}`}
+      className={`fi fi-${iso} shrink-0 rounded-xs ${className}`}
       style={{ width: '1.25em', height: '0.9em' }}
       aria-hidden
     />
