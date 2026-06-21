@@ -39,11 +39,19 @@ export interface MatchRef {
 export interface ObservedGoal {
   side: 'home' | 'away';
   player: string;
+  /** Stable scorer id from the feed. */
+  playerId?: string;
   /** Match minute, e.g. "23'" or "45'+2'". */
   minute: string;
   kind: 'goal' | 'penalty' | 'own';
   /** Chronological order within the match (0-based). */
   order: number;
+}
+
+/** A match's goal events plus the ids of players who actually played (both teams). */
+export interface MatchEvents {
+  goals: ObservedGoal[];
+  lineup: string[];
 }
 
 export interface DataProvider {
@@ -56,8 +64,8 @@ export interface DataProvider {
   loadResults?(): Promise<LiveObservation[]>;
   /** One pass over the calendar: finished results plus a ref for every match (for goal fetches). */
   loadCalendar?(): Promise<{ results: LiveObservation[]; refs: MatchRef[] }>;
-  /** Goal events (scorers) for one match. */
-  loadMatchGoals?(ref: MatchRef): Promise<ObservedGoal[]>;
+  /** Goal events (scorers) + who played, for one match. */
+  loadMatchGoals?(ref: MatchRef): Promise<MatchEvents>;
 }
 
 /** FIFA 3-letter codes for the 48 finalists (used as stable team ids). */

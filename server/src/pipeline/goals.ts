@@ -23,11 +23,15 @@ async function mapLimit<I>(items: I[], limit: number, fn: (item: I) => Promise<v
  */
 export class GoalTracker {
   private readonly byFixture = new Map<string, GoalEvent[]>();
+  private readonly lineupByFixture = new Map<string, string[]>();
   private readonly attempts = new Map<string, number>();
 
-  /** Rehydrate from a previously persisted snapshot (so restarts keep scorers). */
+  /** Rehydrate from a previously persisted snapshot (so restarts keep scorers + lineups). */
   seed(matches: Match[]): void {
-    for (const m of matches) if (m.goals && m.goals.length) this.byFixture.set(m.id, m.goals);
+    for (const m of matches) {
+      if (m.goals && m.goals.length) this.byFixture.set(m.id, m.goals);
+      if (m.lineup && m.lineup.length) this.lineupByFixture.set(m.id, m.lineup);
+    }
   }
 
   /**
@@ -51,7 +55,9 @@ export class GoalTracker {
         const have = this.byFixture.get(m.id)?.length;
         const want = (m.homeScore ?? 0) + (m.awayScore ?? 0);
         const tries = this.attempts.get(m.id) ?? 0;
-        if (have === undefined || (have < want && tries < MAX_FINISHED_ATTEMPTS)) {
+        // Fetch if goals are incomplete or we don't yet have the lineup (for games-played).
+        const needs = have === undefined || have < want || !this.lineupByFixture.has(m.id);
+        if (needs && tries < MAX_FINISHED_ATTEMPTS) {
           candidates.push({ match: m, ref, rank: 1 / (Date.parse(m.kickoff) || 1) }); // newest finished first
         }
       }
@@ -59,28 +65,36 @@ export class GoalTracker {
     candidates.sort((a, b) => a.rank - b.rank);
 
     await mapLimit(candidates, concurrency, async ({ match, ref }) => {
-      const observed = await provider.loadMatchGoals!(ref);
+      const { goals: observed, lineup } = await provider.loadMatchGoals!(ref);
       // FIFA home/away -> our team ids (both are FIFA 3-letter codes = our ids).
       this.byFixture.set(
         match.id,
         observed.map((g) => ({
           teamId: (g.side === 'home' ? ref.homeCode : ref.awayCode) as string,
           player: g.player,
+          playerId: g.playerId,
           minute: g.minute,
           kind: g.kind,
           order: g.order,
         })),
       );
+      this.lineupByFixture.set(match.id, lineup);
       if (match.status === 'finished') this.attempts.set(match.id, (this.attempts.get(match.id) ?? 0) + 1);
     });
   }
 
-  /** Attach cached goals to their fixtures. */
+  /** Attach cached goals + lineups to their fixtures. */
   attach(matches: Match[]): Match[] {
-    if (this.byFixture.size === 0) return matches;
+    if (this.byFixture.size === 0 && this.lineupByFixture.size === 0) return matches;
     return matches.map((m) => {
       const goals = this.byFixture.get(m.id);
-      return goals && goals.length ? { ...m, goals } : m;
+      const lineup = this.lineupByFixture.get(m.id);
+      if (!(goals && goals.length) && !(lineup && lineup.length)) return m;
+      return {
+        ...m,
+        ...(goals && goals.length ? { goals } : {}),
+        ...(lineup && lineup.length ? { lineup } : {}),
+      };
     });
   }
 }

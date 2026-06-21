@@ -52,11 +52,29 @@ export interface GoalEvent {
   teamId: string;
   /** Scorer display name. */
   player: string;
+  /** Stable scorer id from the source feed, for cross-match aggregation. */
+  playerId?: string;
   /** Match minute, e.g. "23'" or "45'+2'". */
   minute: string;
   kind: GoalKind;
   /** Chronological order within the match (0-based), for stable display. */
   order: number;
+}
+
+/** A row in the top-scorers (Golden Boot) table. */
+export interface TopScorer {
+  /** 1-based rank; ties share a rank. */
+  rank: number;
+  playerId?: string;
+  player: string;
+  /** The scorer's team id. */
+  teamId: string;
+  /** Total goals credited (open play + penalties; own goals excluded). */
+  goals: number;
+  /** How many of those goals were penalties. */
+  penalties: number;
+  /** Matches the player appeared in (started or came on). */
+  matchesPlayed: number;
 }
 
 export interface Match {
@@ -83,6 +101,8 @@ export interface Match {
   penalties?: { home: number; away: number };
   /** Goal events (scorers), when available from the live provider. */
   goals?: GoalEvent[];
+  /** Player ids who actually played (started or came on) — for games-played tallies. */
+  lineup?: string[];
 }
 
 export interface StandingRow {
@@ -205,6 +225,8 @@ export interface Snapshot {
   thirdPlace: ThirdPlaceRanking;
   bracket: Bracket;
   qualification: Qualification;
+  /** Top scorers across all matches (Golden Boot race). */
+  topScorers: TopScorer[];
   source: {
     /** Active data provider name. */
     provider: string;

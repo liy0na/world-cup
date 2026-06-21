@@ -3,6 +3,7 @@ export * from './standings';
 export * from './thirds';
 export * from './bracket';
 export * from './qualification';
+export * from './scorers';
 export * from './derive';
 export { KNOCKOUT_MATCHES } from './data/bracketStructure';
 export type { KoMatchDef, KoSlotSource } from './data/bracketStructure';

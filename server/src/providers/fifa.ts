@@ -1,5 +1,5 @@
 import { fetchJson } from '../util/fetchJson';
-import type { DataProvider, LiveObservation, MatchRef, ObservedGoal, Schedule } from './provider';
+import type { DataProvider, LiveObservation, MatchEvents, MatchRef, ObservedGoal, Schedule } from './provider';
 
 // FIFA World Cup = competition 17; the 2026 edition = season 285023.
 const WORLD_CUP_COMPETITION = '17';
@@ -55,6 +55,8 @@ interface FifaPlayer {
   IdPlayer?: string;
   PlayerName?: FifaLocalised[];
   ShortName?: FifaLocalised[];
+  /** 1 = starting XI, 2 = bench. */
+  Status?: number;
 }
 interface FifaGoal {
   // 1 = penalty, 3 = own goal, anything else (typically 2) = normal goal.
@@ -62,9 +64,13 @@ interface FifaGoal {
   IdPlayer?: string;
   Minute?: string;
 }
+interface FifaSubstitution {
+  IdPlayerOn?: string;
+}
 interface FifaTeamDetail {
   Goals?: FifaGoal[] | null;
   Players?: FifaPlayer[] | null;
+  Substitutions?: FifaSubstitution[] | null;
 }
 interface FifaMatchDetail {
   HomeTeam?: FifaTeamDetail | null;
@@ -214,14 +220,19 @@ export class FifaLiveProvider implements DataProvider {
     }
   }
 
-  /** Goal events for one match, oriented to the upstream home/away and ordered by minute. */
-  async loadMatchGoals(ref: MatchRef): Promise<ObservedGoal[]> {
+  /** Goal events (ordered by minute) + who played, for one match. */
+  async loadMatchGoals(ref: MatchRef): Promise<MatchEvents> {
     try {
       const url = `${this.base}/live/football/${WORLD_CUP_COMPETITION}/${WORLD_CUP_SEASON_2026}/${ref.idStage}/${ref.idMatch}?language=en`;
       const d = await fetchJson<FifaMatchDetail>(url, { timeoutMs: 10_000 });
       const names = new Map<string, string>();
+      const lineup = new Set<string>();
       for (const side of [d.HomeTeam, d.AwayTeam]) {
-        for (const p of side?.Players ?? []) if (p.IdPlayer) names.set(p.IdPlayer, playerName(p));
+        for (const p of side?.Players ?? []) {
+          if (p.IdPlayer) names.set(p.IdPlayer, playerName(p));
+          if (p.IdPlayer && p.Status === 1) lineup.add(p.IdPlayer); // starting XI
+        }
+        for (const s of side?.Substitutions ?? []) if (s.IdPlayerOn) lineup.add(s.IdPlayerOn); // came on
       }
       const collect = (side: 'home' | 'away', goals: FifaGoal[] | null | undefined) =>
         (goals ?? []).map((g) => ({
@@ -229,14 +240,23 @@ export class FifaLiveProvider implements DataProvider {
           kind: goalKind(g.Type),
           minute: g.Minute ?? '',
           player: (g.IdPlayer ? names.get(g.IdPlayer) : undefined) ?? '',
+          playerId: g.IdPlayer,
           sort: minuteSort(g.Minute ?? ''),
         }));
       const all = [...collect('home', d.HomeTeam?.Goals), ...collect('away', d.AwayTeam?.Goals)];
       all.sort((a, b) => a.sort - b.sort);
-      return all.map(({ side, player, minute, kind }, order) => ({ side, player, minute, kind, order }));
+      const goals: ObservedGoal[] = all.map(({ side, player, playerId, minute, kind }, order) => ({
+        side,
+        player,
+        playerId,
+        minute,
+        kind,
+        order,
+      }));
+      return { goals, lineup: [...lineup] };
     } catch (err) {
       console.warn(`[fifa-goals] fetch failed (ignored): ${(err as Error).message}`);
-      return [];
+      return { goals: [], lineup: [] };
     }
   }
 }

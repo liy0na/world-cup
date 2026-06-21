@@ -5,6 +5,7 @@ import { GroupTable } from './components/GroupTable';
 import { LiveScores } from './components/LiveScores';
 import { Scenarios } from './components/Scenarios';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
+import { TopScorers } from './components/TopScorers';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
 import { timeAgo } from './lib/format';
@@ -166,8 +167,9 @@ export function App() {
                   ))}
                 </section>
                 <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
-                <section className="max-w-2xl">
+                <section className="grid items-start gap-4 lg:grid-cols-2">
                   <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} />
+                  <TopScorers scorers={view.topScorers ?? []} teams={teams} />
                 </section>
               </>
             )}
