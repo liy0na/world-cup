@@ -13,7 +13,8 @@ interface Props {
 
 // `wide` columns (GF, GA) are hidden on phones and shown from md up; the rest
 // (P W D L GD Pts) are always visible. Auto layout sizes each number column to
-// its content, so with no Form column the table fits its card without scrolling.
+// its content; the team cell (w-full max-w-0) absorbs the remaining width and
+// truncates, so long names never push the Pts column off a narrow card.
 const COLS = [
   ['P', 'played', false],
   ['W', 'won', false],
@@ -56,14 +57,14 @@ export function GroupTable({ table, teams, qualification }: Props) {
             const style = outlookStyle(status?.outlook, row.rank);
             return (
               <tr key={row.teamId} className="border-t border-slate-800/60 hover:bg-slate-800/30">
-                <td className={`py-1.5 ps-3 pe-2 border-s-2 ${style.accent}`}>
+                <td className={`w-full max-w-0 py-1.5 ps-3 pe-2 border-s-2 ${style.accent}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-slate-600 tabular-nums w-3 text-xs shrink-0">{num(row.rank)}</span>
                     <Flag code={team?.code} />
                     <span className="hidden font-mono text-[11px] text-slate-400 w-9 shrink-0 sm:inline">
                       {team?.code ?? row.teamId}
                     </span>
-                    <span className="text-slate-200 truncate max-w-28 md:max-w-none">{teamName(team, lang) || row.teamId}</span>
+                    <span className="text-slate-200 truncate">{teamName(team, lang) || row.teamId}</span>
                     {style.marker && (
                       <span
                         className={`shrink-0 text-xs ${style.markerClass}`}
