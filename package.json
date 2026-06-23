@@ -13,6 +13,7 @@
     "dev:server": "npm -w @wc/server run dev",
     "dev:web": "npm -w @wc/web run dev",
     "build": "npm -w @wc/web run build && npm -w @wc/server run build",
+    "icons": "node scripts/generate-app-icons.mjs",
     "start": "npm -w @wc/server run start",
     "test": "vitest run",
     "test:watch": "vitest",
