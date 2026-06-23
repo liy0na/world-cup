@@ -22,6 +22,7 @@ const CONN_COLOR: Record<ConnectionStatus, string> = {
   connecting: 'bg-slate-500',
   offline: 'bg-red-500',
 };
+const GITHUB_URL = 'https://github.com/liy0na/world-cup';
 
 type Tab = 'groups' | 'matches' | 'bracket' | 'whatif';
 type Scenario = Record<string, KoResult>;
@@ -235,8 +236,16 @@ export function App() {
         )}
       </main>
 
-      <footer className="mx-auto max-w-[1700px] px-4 py-6 text-xs text-slate-600">
+      <footer className="mx-auto flex max-w-[1700px] flex-wrap items-center gap-x-3 gap-y-2 px-4 py-6 text-xs text-slate-600">
         <p>{t('footer', { provider: snapshot?.source.provider ?? '—' })}</p>
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-slate-400 underline-offset-4 hover:text-slate-200 hover:underline"
+        >
+          {t('githubLink')}
+        </a>
       </footer>
     </div>
   );
