@@ -13,6 +13,7 @@ const ICONS = [
   ['icon-maskable-192.png', 192],
   ['icon-maskable-512.png', 512],
 ];
+const OG_IMAGE = ['og-image.png', 1200, 630];
 
 const BLACK = [17, 17, 17, 255];
 const WHITE = [255, 255, 255, 255];
@@ -26,52 +27,52 @@ function fillBackground(buf) {
   }
 }
 
-function setPixel(buf, size, x, y, color) {
+function setPixel(buf, width, height, x, y, color) {
   x = Math.round(x);
   y = Math.round(y);
-  if (x < 0 || y < 0 || x >= size || y >= size) return;
-  const i = (y * size + x) * 4;
+  if (x < 0 || y < 0 || x >= width || y >= height) return;
+  const i = (y * width + x) * 4;
   buf[i] = color[0];
   buf[i + 1] = color[1];
   buf[i + 2] = color[2];
   buf[i + 3] = color[3];
 }
 
-function fillCircle(buf, size, cx, cy, r, color) {
+function fillCircle(buf, width, height, cx, cy, r, color) {
   const minX = Math.max(0, Math.floor(cx - r));
   const minY = Math.max(0, Math.floor(cy - r));
-  const maxX = Math.min(size - 1, Math.ceil(cx + r));
-  const maxY = Math.min(size - 1, Math.ceil(cy + r));
+  const maxX = Math.min(width - 1, Math.ceil(cx + r));
+  const maxY = Math.min(height - 1, Math.ceil(cy + r));
   const rr = r * r;
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
-      if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= rr) setPixel(buf, size, x, y, color);
+      if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= rr) setPixel(buf, width, height, x, y, color);
     }
   }
 }
 
-function strokeCircle(buf, size, cx, cy, r, width, color) {
-  const minX = Math.max(0, Math.floor(cx - r - width));
-  const minY = Math.max(0, Math.floor(cy - r - width));
-  const maxX = Math.min(size - 1, Math.ceil(cx + r + width));
-  const maxY = Math.min(size - 1, Math.ceil(cy + r + width));
-  const inner = (r - width / 2) ** 2;
-  const outer = (r + width / 2) ** 2;
+function strokeCircle(buf, canvasWidth, canvasHeight, cx, cy, r, lineWidth, color) {
+  const minX = Math.max(0, Math.floor(cx - r - lineWidth));
+  const minY = Math.max(0, Math.floor(cy - r - lineWidth));
+  const maxX = Math.min(canvasWidth - 1, Math.ceil(cx + r + lineWidth));
+  const maxY = Math.min(canvasHeight - 1, Math.ceil(cy + r + lineWidth));
+  const inner = (r - lineWidth / 2) ** 2;
+  const outer = (r + lineWidth / 2) ** 2;
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
       const d = (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2;
-      if (d >= inner && d <= outer) setPixel(buf, size, x, y, color);
+      if (d >= inner && d <= outer) setPixel(buf, canvasWidth, canvasHeight, x, y, color);
     }
   }
 }
 
-function fillPolygon(buf, size, points, color) {
+function fillPolygon(buf, width, height, points, color) {
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
   const minX = Math.max(0, Math.floor(Math.min(...xs)));
-  const maxX = Math.min(size - 1, Math.ceil(Math.max(...xs)));
+  const maxX = Math.min(width - 1, Math.ceil(Math.max(...xs)));
   const minY = Math.max(0, Math.floor(Math.min(...ys)));
-  const maxY = Math.min(size - 1, Math.ceil(Math.max(...ys)));
+  const maxY = Math.min(height - 1, Math.ceil(Math.max(...ys)));
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
@@ -85,7 +86,7 @@ function fillPolygon(buf, size, points, color) {
           inside = !inside;
         }
       }
-      if (inside) setPixel(buf, size, x, y, color);
+      if (inside) setPixel(buf, width, height, x, y, color);
     }
   }
 }
@@ -98,22 +99,15 @@ function rotatePoint([x, y], angle, cx, cy) {
   return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
 }
 
-function drawBall(size) {
-  const hiSize = size * SUPER_SAMPLE;
-  const buf = new Uint8ClampedArray(hiSize * hiSize * 4);
-  const scale = hiSize / 32;
-  const p = (x, y) => [x * scale, y * scale];
-
-  fillBackground(buf);
-
-  const cx = 16 * scale;
-  const cy = 16 * scale;
+function drawClassicBall(buf, width, height, cx, cy, scale) {
+  const p = (x, y) => [cx + (x - 16) * scale, cy + (y - 16) * scale];
   const r = 15 * scale;
-  fillCircle(buf, hiSize, cx, cy, r, WHITE);
+  fillCircle(buf, width, height, cx, cy, r, WHITE);
 
   fillPolygon(
     buf,
-    hiSize,
+    width,
+    height,
     [
       p(16, 10.55),
       p(21.18, 14.31),
@@ -133,12 +127,28 @@ function drawBall(size) {
   ];
   for (let i = 0; i < 5; i += 1) {
     const angle = (Math.PI * 2 * i) / 5;
-    fillPolygon(buf, hiSize, outerPentagon.map((point) => rotatePoint(point, angle, cx, cy)), BLACK);
+    fillPolygon(buf, width, height, outerPentagon.map((point) => rotatePoint(point, angle, cx, cy)), BLACK);
   }
 
-  strokeCircle(buf, hiSize, cx, cy, r, scale, BLACK);
+  strokeCircle(buf, width, height, cx, cy, r, scale, BLACK);
+}
+
+function drawBall(size) {
+  const hiSize = size * SUPER_SAMPLE;
+  const buf = new Uint8ClampedArray(hiSize * hiSize * 4);
+  fillBackground(buf);
+  drawClassicBall(buf, hiSize, hiSize, hiSize / 2, hiSize / 2, hiSize / 32);
 
   return downsample(buf, size, SUPER_SAMPLE);
+}
+
+function drawOgImage(width, height) {
+  const hiWidth = width * SUPER_SAMPLE;
+  const hiHeight = height * SUPER_SAMPLE;
+  const buf = new Uint8ClampedArray(hiWidth * hiHeight * 4);
+  fillBackground(buf);
+  drawClassicBall(buf, hiWidth, hiHeight, hiWidth / 2, hiHeight / 2, (260 * SUPER_SAMPLE) / 15);
+  return downsampleRect(buf, width, height, SUPER_SAMPLE);
 }
 
 function downsample(src, size, factor) {
@@ -157,6 +167,32 @@ function downsample(src, size, factor) {
         }
       }
       const o = (y * size + x) * 4;
+      const samples = factor * factor;
+      dst[o] = Math.round(accum[0] / samples);
+      dst[o + 1] = Math.round(accum[1] / samples);
+      dst[o + 2] = Math.round(accum[2] / samples);
+      dst[o + 3] = Math.round(accum[3] / samples);
+    }
+  }
+  return dst;
+}
+
+function downsampleRect(src, width, height, factor) {
+  const dst = Buffer.alloc(width * height * 4);
+  const hiWidth = width * factor;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const accum = [0, 0, 0, 0];
+      for (let sy = 0; sy < factor; sy += 1) {
+        for (let sx = 0; sx < factor; sx += 1) {
+          const i = ((y * factor + sy) * hiWidth + x * factor + sx) * 4;
+          accum[0] += src[i];
+          accum[1] += src[i + 1];
+          accum[2] += src[i + 2];
+          accum[3] += src[i + 3];
+        }
+      }
+      const o = (y * width + x) * 4;
       const samples = factor * factor;
       dst[o] = Math.round(accum[0] / samples);
       dst[o + 1] = Math.round(accum[1] / samples);
@@ -219,5 +255,12 @@ await mkdir(OUT_DIR, { recursive: true });
 for (const [name, size] of ICONS) {
   const file = join(OUT_DIR, name);
   await writeFile(file, encodePng(size, size, drawBall(size)));
+  console.log(`wrote ${file}`);
+}
+
+{
+  const [name, width, height] = OG_IMAGE;
+  const file = join(OUT_DIR, name);
+  await writeFile(file, encodePng(width, height, drawOgImage(width, height)));
   console.log(`wrote ${file}`);
 }
