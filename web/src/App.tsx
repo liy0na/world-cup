@@ -11,6 +11,7 @@ import { TopAssists } from './components/TopAssists';
 import { TopScorers } from './components/TopScorers';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
+import { useVisitorStats } from './hooks/useVisitorStats';
 import { timeAgo } from './lib/format';
 import { useI18n, type Lang } from './lib/i18n';
 import { encodeScenario, readScenarioFromHash, scenarioShareUrl } from './lib/scenarioUrl';
@@ -47,6 +48,7 @@ function applyScenario(snapshot: Snapshot, scenario: Scenario): Snapshot {
 export function App() {
   const { t, lang, setLang, num } = useI18n();
   const { snapshot, status } = useLiveState();
+  const visitorStats = useVisitorStats();
   const [tab, setTab] = useState<Tab>('groups');
   const [draft, setDraft] = useState<Draft>({});
   // Seed any scenario shared via the URL hash (#s=…) on first load.
@@ -238,6 +240,15 @@ export function App() {
 
       <footer className="mx-auto flex max-w-[1700px] flex-wrap items-center gap-x-3 gap-y-2 px-4 py-6 text-xs text-slate-600">
         <p>{t('footer', { provider: snapshot?.source.provider ?? '—' })}</p>
+        {visitorStats && (
+          <span title={t('visitorStatsPrivacy')} className="text-slate-500">
+            {t('visitorStats', {
+              today: num(visitorStats.todayPageLoads),
+              total: num(visitorStats.totalPageLoads),
+              current: num(visitorStats.currentLiveConnections),
+            })}
+          </span>
+        )}
         <a
           href={GITHUB_URL}
           target="_blank"

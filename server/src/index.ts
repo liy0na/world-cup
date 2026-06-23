@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { loadConfig } from './config';
 import { SnapshotCache } from './core/cache';
 import { Poller } from './core/poller';
+import { VisitorStats } from './core/visitors';
 import { registerRoutes } from './http/routes';
 import { createProviders } from './providers';
 
@@ -11,12 +12,15 @@ async function main(): Promise<void> {
 
   const cache = new SnapshotCache(config.dataDir);
   await cache.load(); // restore last-good snapshot so we render instantly
+  const visitors = new VisitorStats(config.dataDir);
+  await visitors.load();
 
   const providers = createProviders(config);
   const poller = new Poller(providers, cache, config);
 
   await registerRoutes(app, {
     cache,
+    visitors,
     webDist: config.webDist,
     health: () => poller.health(),
     matchDetail: (id) => poller.getMatchDetail(id),

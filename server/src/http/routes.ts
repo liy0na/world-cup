@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs';
 import fastifyStatic from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 import type { SnapshotCache } from '../core/cache';
+import type { VisitorStats } from '../core/visitors';
 
 const HEARTBEAT_MS = 25_000;
 
 export interface RouteDeps {
   cache: SnapshotCache;
+  visitors: VisitorStats;
   webDist: string;
   /** Optional liveness info surfaced on /api/health. */
   health: () => Record<string, unknown>;
@@ -15,9 +17,17 @@ export interface RouteDeps {
 }
 
 export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Promise<void> {
-  const { cache } = deps;
+  const { cache, visitors } = deps;
 
   app.get('/api/health', () => ({ ok: true, ...deps.health() }));
+
+  app.get('/api/visitors', (_req, reply) => {
+    return reply.header('Cache-Control', 'no-store').send(visitors.snapshot());
+  });
+
+  app.post('/api/visitors/visit', async (_req, reply) => {
+    return reply.header('Cache-Control', 'no-store').send(await visitors.recordPageLoad());
+  });
 
   // Current snapshot. The poller fills this within a second of boot; until then
   // (and with no last-good disk copy) we report "warming up".
@@ -39,6 +49,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
   // heartbeat so reverse proxies (Traefik) don't drop the idle stream.
   app.get('/api/stream', (req, reply) => {
     reply.hijack();
+    visitors.openLiveConnection();
     const res = reply.raw;
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -60,6 +71,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps): Pro
 
     req.raw.on('close', () => {
       clearInterval(heartbeat);
+      visitors.closeLiveConnection();
       unsubscribe();
     });
   });
