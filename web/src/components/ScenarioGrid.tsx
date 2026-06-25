@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { computeScenarioGrid, type GridScoreline, type GroupLetter, type Match } from '@wc/shared';
 import { Flag } from '../lib/flags';
 import { useI18n } from '../lib/i18n';
@@ -21,9 +21,25 @@ const HATCH = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.6) 0 1px, tra
 // whole matrix fits the viewport width on a phone instead of scrolling sideways.
 const COL_GROUP = 16; // height of the "TEAM WINS" header band
 const ROW_GROUP = 14; // width of the rotated row-group band
-// The scoreline-label gutters (--rl width / --cl height) are set responsively on
-// the grid container — sized on tablet/desktop, collapsed to 0 on phones where
-// the tiny rotated numbers are unreadable and hidden.
+// The scoreline-label gutters (--rl width / --cl height) and the cell-fit reserve
+// (--reserve) are set responsively on the grid container so the matrix fits the
+// viewport at both the phone (0–3, 16 cols) and desktop (0–4, 25 cols) sizes.
+
+/** True below Tailwind's `sm` breakpoint (640px) — kept in sync with the `sm:` classes. */
+function useIsNarrow(): boolean {
+  const query = '(max-width: 639px)';
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return narrow;
+}
 
 /** Contiguous runs of equal result (team1 win / draw / team2 win) within an axis. */
 function resultRuns(line: GridScoreline[]): { result: GridScoreline['result']; start: number; end: number }[] {
@@ -38,9 +54,13 @@ function resultRuns(line: GridScoreline[]): { result: GridScoreline['result']; s
 
 export function ScenarioGrid({ group, teams, matches }: Props) {
   const { t, lang, num } = useI18n();
+  // Phones get a smaller 0–3 grid (16×16) so the scoreline labels stay legible;
+  // tablets/desktop use the full 0–4 grid (25×25).
+  const narrow = useIsNarrow();
+  const maxGoals = narrow ? 3 : 4;
   const grid = useMemo(
-    () => computeScenarioGrid(group as GroupLetter, [...teams.values()], matches),
-    [group, teams, matches],
+    () => computeScenarioGrid(group as GroupLetter, [...teams.values()], matches, maxGoals),
+    [group, teams, matches, maxGoals],
   );
   const [focal, setFocal] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
@@ -81,10 +101,9 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
   const activeFocal = focal && order.includes(focal) ? focal : mostContested ?? order[0]!;
   const dist = distByTeam[activeFocal] ?? [0, 0, 0, 0, 0];
   const total = grid.cols.length * grid.rows.length;
-  // Square cells that fill the available width: shrink on small phones, cap at
-  // 16px on desktop. The reserve (responsive, set on the container) covers
-  // page/card padding, label gutters and the 1px gridline gaps so the grid never
-  // overflows; on phones the per-scoreline number labels are hidden, freeing room.
+  // Square cells that fill the available width, capped at 16px. The reserve
+  // (responsive, set on the container) covers page/card padding, the label
+  // gutters and the 1px gridline gaps so the grid never overflows the viewport.
   const cellSize = `clamp(9px, calc((100vw - var(--reserve)) / ${grid.cols.length}), 16px)`;
   const code = (id: string) => teams.get(id)?.code ?? id;
   const sl = (s: GridScoreline) => `${num(s.s1)}–${num(s.s2)}`;
@@ -149,7 +168,7 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
       {/* Matrix */}
       <div className="overflow-x-auto" dir="ltr">
         <div
-          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800 [--cl:0px] [--reserve:6.5rem] [--rl:0px] sm:[--cl:26px] sm:[--reserve:8.5rem] sm:[--rl:28px]"
+          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800 [--cl:24px] [--reserve:7.25rem] [--rl:24px] sm:[--cl:26px] sm:[--reserve:8.5rem] sm:[--rl:28px]"
           style={{
             gridTemplateColumns: `${ROW_GROUP}px var(--rl) repeat(${grid.cols.length}, ${cellSize})`,
             gridTemplateRows: `${COL_GROUP}px var(--cl) repeat(${grid.rows.length}, ${cellSize})`,
@@ -180,11 +199,11 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
             );
           })}
 
-          {/* Column scoreline labels (rotated) — hidden on phones (unreadable at that size) */}
+          {/* Column scoreline labels (rotated) */}
           {grid.cols.map((s, i) => (
             <div
               key={`cl${i}`}
-              className={`hidden items-center justify-center overflow-visible transition-colors sm:flex ${
+              className={`flex items-center justify-center overflow-visible transition-colors ${
                 hover?.c === i ? 'bg-slate-700' : 'bg-slate-900/40'
               }`}
               style={{ gridColumn: `${3 + i} / ${4 + i}`, gridRow: '2 / 3' }}
@@ -223,11 +242,11 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
             );
           })}
 
-          {/* Row scoreline labels — hidden on phones (unreadable at that size) */}
+          {/* Row scoreline labels */}
           {grid.rows.map((s, i) => (
             <div
               key={`rl${i}`}
-              className={`hidden items-center justify-end pr-1 font-mono text-[9px] tabular-nums transition-colors sm:flex ${
+              className={`flex items-center justify-end pr-1 font-mono text-[9px] tabular-nums transition-colors ${
                 hover?.r === i ? 'bg-slate-700 font-semibold text-white' : 'bg-slate-900/40 text-slate-400'
               }`}
               style={{ gridColumn: '2 / 3', gridRow: `${3 + i} / ${4 + i}` }}
@@ -297,7 +316,7 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
             );
           })()
         ) : (
-          <span className="text-slate-500">{t('gridHover')}</span>
+          <span className="text-slate-500">{t('gridHover', { max: num(maxGoals) })}</span>
         )}
       </div>
     </div>
