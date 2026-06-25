@@ -168,7 +168,7 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
       {/* Matrix */}
       <div className="overflow-x-auto" dir="ltr">
         <div
-          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800 [--cl:24px] [--reserve:7.25rem] [--rl:24px] sm:[--cl:26px] sm:[--reserve:8.5rem] sm:[--rl:28px]"
+          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800 [--cl:28px] [--reserve:7.25rem] [--rl:24px] sm:[--cl:26px] sm:[--reserve:8.5rem] sm:[--rl:28px]"
           style={{
             gridTemplateColumns: `${ROW_GROUP}px var(--rl) repeat(${grid.cols.length}, ${cellSize})`,
             gridTemplateRows: `${COL_GROUP}px var(--cl) repeat(${grid.rows.length}, ${cellSize})`,
@@ -199,7 +199,8 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
             );
           })}
 
-          {/* Column scoreline labels (rotated) */}
+          {/* Column scoreline labels: stacked upright digits on phones (rotated text
+              is illegible in narrow columns), rotated "s1–s2" on tablet/desktop. */}
           {grid.cols.map((s, i) => (
             <div
               key={`cl${i}`}
@@ -208,13 +209,24 @@ export function ScenarioGrid({ group, teams, matches }: Props) {
               }`}
               style={{ gridColumn: `${3 + i} / ${4 + i}`, gridRow: '2 / 3' }}
             >
-              <span
-                className={`origin-center -rotate-90 font-mono text-[9px] tabular-nums ${
-                  hover?.c === i ? 'font-semibold text-white' : 'text-slate-400'
-                }`}
-              >
-                {sl(s)}
-              </span>
+              {narrow ? (
+                <span
+                  className={`flex flex-col items-center font-mono text-[9px] leading-[1.1] tabular-nums ${
+                    hover?.c === i ? 'font-semibold text-white' : 'text-slate-400'
+                  }`}
+                >
+                  <span>{num(s.s1)}</span>
+                  <span className={hover?.c === i ? '' : 'text-slate-500'}>{num(s.s2)}</span>
+                </span>
+              ) : (
+                <span
+                  className={`origin-center -rotate-90 font-mono text-[9px] tabular-nums ${
+                    hover?.c === i ? 'font-semibold text-white' : 'text-slate-400'
+                  }`}
+                >
+                  {sl(s)}
+                </span>
+              )}
             </div>
           ))}
 
