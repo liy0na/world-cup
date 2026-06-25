@@ -67,8 +67,6 @@ export function Scenarios({ groupTables, qualification, teams, matches }: Props)
     .filter(([, ms]) => ms.length === 2 && new Set(ms.flatMap((m) => [m.home.teamId!, m.away.teamId!])).size === 4)
     .map(([g]) => g)
     .sort();
-  const leaderOf = (group: string) =>
-    groupTables.find((gt) => gt.group === group)?.rows[0]?.teamId;
 
   if (groups.length === 0 && finalGroups.length === 0) return null;
 
@@ -116,7 +114,7 @@ export function Scenarios({ groupTables, qualification, teams, matches }: Props)
           <p className="mb-3 max-w-3xl text-xs text-slate-500">{t('gridIntro')}</p>
           <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
             {finalGroups.map((group) => (
-              <ScenarioGrid key={group} group={group} teams={teams} matches={matches} defaultFocal={leaderOf(group)} />
+              <ScenarioGrid key={group} group={group} teams={teams} matches={matches} />
             ))}
           </div>
         </section>

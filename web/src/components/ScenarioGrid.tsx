@@ -9,8 +9,6 @@ interface Props {
   group: string;
   teams: TeamMap;
   matches: Match[];
-  /** Team to colour by on first render (typically the current group leader). */
-  defaultFocal?: string;
 }
 
 /** Final-position colours, matching the legend (dark green → light green → yellow → pink). */
@@ -22,9 +20,10 @@ const HATCH = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.6) 0 1px, tra
 // Fixed label gutters (px). Data cells are sized fluidly (see `cellSize`) so the
 // whole matrix fits the viewport width on a phone instead of scrolling sideways.
 const COL_GROUP = 16; // height of the "TEAM WINS" header band
-const COL_LABEL = 26; // height of the rotated scoreline labels
 const ROW_GROUP = 14; // width of the rotated row-group band
-const ROW_LABEL = 28; // width of the horizontal row scoreline labels
+// The scoreline-label gutters (--rl width / --cl height) are set responsively on
+// the grid container — sized on tablet/desktop, collapsed to 0 on phones where
+// the tiny rotated numbers are unreadable and hidden.
 
 /** Contiguous runs of equal result (team1 win / draw / team2 win) within an axis. */
 function resultRuns(line: GridScoreline[]): { result: GridScoreline['result']; start: number; end: number }[] {
@@ -37,37 +36,56 @@ function resultRuns(line: GridScoreline[]): { result: GridScoreline['result']; s
   return runs;
 }
 
-export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
+export function ScenarioGrid({ group, teams, matches }: Props) {
   const { t, lang, num } = useI18n();
   const grid = useMemo(
     () => computeScenarioGrid(group as GroupLetter, [...teams.values()], matches),
     [group, teams, matches],
   );
-  const [focal, setFocal] = useState<string | undefined>(defaultFocal);
+  const [focal, setFocal] = useState<string | undefined>(undefined);
   const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
 
-  const order = grid ? [grid.col.team1, grid.col.team2, grid.row.team1, grid.row.team2] : [];
-  const activeFocal =
-    focal && order.includes(focal)
-      ? focal
-      : defaultFocal && order.includes(defaultFocal)
-        ? defaultFocal
-        : order[0] ?? '';
+  // Finish distribution (counts per position 1..4) for every team in the group.
+  const distByTeam = useMemo(() => {
+    const out: Record<string, number[]> = {};
+    if (!grid) return out;
+    const tids = [grid.col.team1, grid.col.team2, grid.row.team1, grid.row.team2];
+    for (const id of tids) out[id] = [0, 0, 0, 0, 0];
+    for (const rowCells of grid.cells)
+      for (const cell of rowCells) for (const id of tids) out[id]![cell.ranks[id] ?? 0]!++;
+    return out;
+  }, [grid]);
 
-  // How often the focal team lands in each position across every scoreline.
-  const dist = useMemo(() => {
-    const d = [0, 0, 0, 0, 0];
-    if (grid) for (const rowCells of grid.cells) for (const cell of rowCells) d[cell.ranks[activeFocal] ?? 0]!++;
-    return d;
-  }, [grid, activeFocal]);
+  // Default focus = the team whose finish is least certain (highest entropy over
+  // its position distribution), so the grid opens colourful and informative
+  // rather than on a team locked into one place (all one colour).
+  const mostContested = useMemo(() => {
+    if (!grid) return undefined;
+    const total = grid.cols.length * grid.rows.length;
+    let best: string | undefined;
+    let bestEntropy = -1;
+    for (const [id, d] of Object.entries(distByTeam)) {
+      let h = 0;
+      for (const c of d) if (c > 0) h -= (c / total) * Math.log(c / total);
+      if (h > bestEntropy) {
+        bestEntropy = h;
+        best = id;
+      }
+    }
+    return best;
+  }, [grid, distByTeam]);
 
   if (!grid) return null;
 
+  const order = [grid.col.team1, grid.col.team2, grid.row.team1, grid.row.team2];
+  const activeFocal = focal && order.includes(focal) ? focal : mostContested ?? order[0]!;
+  const dist = distByTeam[activeFocal] ?? [0, 0, 0, 0, 0];
   const total = grid.cols.length * grid.rows.length;
-  // Square cells that fill the available width: shrink on small phones (min 9px),
-  // cap at 16px on desktop. The 8.5rem reserve covers page/card padding, the two
-  // label gutters and the 1px gridline gaps so the grid never overflows the screen.
-  const cellSize = `clamp(9px, calc((100vw - 8.5rem) / ${grid.cols.length}), 16px)`;
+  // Square cells that fill the available width: shrink on small phones, cap at
+  // 16px on desktop. The reserve (responsive, set on the container) covers
+  // page/card padding, label gutters and the 1px gridline gaps so the grid never
+  // overflows; on phones the per-scoreline number labels are hidden, freeing room.
+  const cellSize = `clamp(9px, calc((100vw - var(--reserve)) / ${grid.cols.length}), 16px)`;
   const code = (id: string) => teams.get(id)?.code ?? id;
   const sl = (s: GridScoreline) => `${num(s.s1)}–${num(s.s2)}`;
   const colRuns = resultRuns(grid.cols);
@@ -131,10 +149,10 @@ export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
       {/* Matrix */}
       <div className="overflow-x-auto" dir="ltr">
         <div
-          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800"
+          className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800 [--cl:0px] [--reserve:6.5rem] [--rl:0px] sm:[--cl:26px] sm:[--reserve:8.5rem] sm:[--rl:28px]"
           style={{
-            gridTemplateColumns: `${ROW_GROUP}px ${ROW_LABEL}px repeat(${grid.cols.length}, ${cellSize})`,
-            gridTemplateRows: `${COL_GROUP}px ${COL_LABEL}px repeat(${grid.rows.length}, ${cellSize})`,
+            gridTemplateColumns: `${ROW_GROUP}px var(--rl) repeat(${grid.cols.length}, ${cellSize})`,
+            gridTemplateRows: `${COL_GROUP}px var(--cl) repeat(${grid.rows.length}, ${cellSize})`,
           }}
           onMouseLeave={() => setHover(null)}
         >
@@ -162,11 +180,11 @@ export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
             );
           })}
 
-          {/* Column scoreline labels (rotated) */}
+          {/* Column scoreline labels (rotated) — hidden on phones (unreadable at that size) */}
           {grid.cols.map((s, i) => (
             <div
               key={`cl${i}`}
-              className={`flex items-center justify-center overflow-visible transition-colors ${
+              className={`hidden items-center justify-center overflow-visible transition-colors sm:flex ${
                 hover?.c === i ? 'bg-slate-700' : 'bg-slate-900/40'
               }`}
               style={{ gridColumn: `${3 + i} / ${4 + i}`, gridRow: '2 / 3' }}
@@ -205,11 +223,11 @@ export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
             );
           })}
 
-          {/* Row scoreline labels */}
+          {/* Row scoreline labels — hidden on phones (unreadable at that size) */}
           {grid.rows.map((s, i) => (
             <div
               key={`rl${i}`}
-              className={`flex items-center justify-end pr-1 font-mono text-[9px] tabular-nums transition-colors ${
+              className={`hidden items-center justify-end pr-1 font-mono text-[9px] tabular-nums transition-colors sm:flex ${
                 hover?.r === i ? 'bg-slate-700 font-semibold text-white' : 'bg-slate-900/40 text-slate-400'
               }`}
               style={{ gridColumn: '2 / 3', gridRow: `${3 + i} / ${4 + i}` }}
