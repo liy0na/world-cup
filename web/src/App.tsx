@@ -4,7 +4,6 @@ import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
 import { AllMatches } from './components/AllMatches';
 import { LiveScores } from './components/LiveScores';
-import { OddsPanel } from './components/OddsPanel';
 import { Scenarios } from './components/Scenarios';
 import { TeamRecords } from './components/TeamRecords';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
@@ -83,7 +82,7 @@ export function App() {
   };
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
-  const { odds, loading: oddsLoading } = useOdds(view?.teams, view?.matches);
+  const { odds } = useOdds(view?.teams, view?.matches);
 
   const scenarioCount = Object.keys(scenario).length;
   const phaseLabel = view
@@ -212,8 +211,12 @@ export function App() {
                     />
                   ))}
                 </section>
+                {odds && (
+                  <p className="-mt-2 max-w-3xl text-xs text-slate-500">
+                    <span className="font-medium text-slate-400">{t('oddsCol')}</span> = {t('oddsColTitle')}. {t('oddsModelNote', { n: num(odds.iterations) })}
+                  </p>
+                )}
                 <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
-                <OddsPanel odds={odds} teams={teams} loading={oddsLoading} />
                 <section className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                   <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} odds={odds?.byTeam} />
                   <TopScorers scorers={view.topScorers ?? []} teams={teams} />
