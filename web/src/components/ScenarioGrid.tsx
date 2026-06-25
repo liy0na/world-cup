@@ -19,11 +19,12 @@ const RANK_BG: Record<number, string> = { 1: '#2f7d34', 2: '#86b94b', 3: '#efcb4
 const RANK_TEXT: Record<number, string> = { 1: '#f8fafc', 2: '#0a0e16', 3: '#0a0e16', 4: '#f8fafc' };
 const HATCH = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.6) 0 1px, transparent 1px 4px)';
 
-const CELL = 16; // px per data cell
-const COL_GROUP = 18; // height of the "TEAM WINS" header band
-const COL_LABEL = 30; // height of the rotated scoreline labels
-const ROW_GROUP = 18; // width of the rotated row-group band
-const ROW_LABEL = 38; // width of the horizontal row scoreline labels
+// Fixed label gutters (px). Data cells are sized fluidly (see `cellSize`) so the
+// whole matrix fits the viewport width on a phone instead of scrolling sideways.
+const COL_GROUP = 16; // height of the "TEAM WINS" header band
+const COL_LABEL = 26; // height of the rotated scoreline labels
+const ROW_GROUP = 14; // width of the rotated row-group band
+const ROW_LABEL = 28; // width of the horizontal row scoreline labels
 
 /** Contiguous runs of equal result (team1 win / draw / team2 win) within an axis. */
 function resultRuns(line: GridScoreline[]): { result: GridScoreline['result']; start: number; end: number }[] {
@@ -63,6 +64,10 @@ export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
   if (!grid) return null;
 
   const total = grid.cols.length * grid.rows.length;
+  // Square cells that fill the available width: shrink on small phones (min 9px),
+  // cap at 16px on desktop. The 8.5rem reserve covers page/card padding, the two
+  // label gutters and the 1px gridline gaps so the grid never overflows the screen.
+  const cellSize = `clamp(9px, calc((100vw - 8.5rem) / ${grid.cols.length}), 16px)`;
   const code = (id: string) => teams.get(id)?.code ?? id;
   const sl = (s: GridScoreline) => `${num(s.s1)}–${num(s.s2)}`;
   const colRuns = resultRuns(grid.cols);
@@ -128,8 +133,8 @@ export function ScenarioGrid({ group, teams, matches, defaultFocal }: Props) {
         <div
           className="grid w-max gap-px overflow-hidden rounded-md bg-slate-950/80 text-slate-300 ring-1 ring-slate-800"
           style={{
-            gridTemplateColumns: `${ROW_GROUP}px ${ROW_LABEL}px repeat(${grid.cols.length}, ${CELL}px)`,
-            gridTemplateRows: `${COL_GROUP}px ${COL_LABEL}px repeat(${grid.rows.length}, ${CELL}px)`,
+            gridTemplateColumns: `${ROW_GROUP}px ${ROW_LABEL}px repeat(${grid.cols.length}, ${cellSize})`,
+            gridTemplateRows: `${COL_GROUP}px ${COL_LABEL}px repeat(${grid.rows.length}, ${cellSize})`,
           }}
           onMouseLeave={() => setHover(null)}
         >
