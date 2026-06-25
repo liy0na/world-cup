@@ -1,14 +1,17 @@
-import type { GroupTable as GroupTableType, Qualification } from '@wc/shared';
+import type { GroupTable as GroupTableType, Qualification, TeamOdds } from '@wc/shared';
 import { Flag } from '../lib/flags';
 import { useI18n } from '../lib/i18n';
 import { outlookStyle } from '../lib/status';
 import { teamName } from '../lib/teamNames';
 import type { TeamMap } from '../lib/teams';
+import { OddsBar } from './OddsBar';
 
 interface Props {
   table: GroupTableType;
   teams: TeamMap;
   qualification: Qualification;
+  /** Advancement odds per team id (Monte-Carlo). Column is hidden when absent. */
+  odds?: Record<string, TeamOdds>;
 }
 
 // `wide` columns (GF, GA) are hidden on phones and shown from md up; the rest
@@ -28,7 +31,7 @@ const COLS = [
 
 const WIDE = 'hidden md:table-cell';
 
-export function GroupTable({ table, teams, qualification }: Props) {
+export function GroupTable({ table, teams, qualification, odds }: Props) {
   const { t, lang, num } = useI18n();
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
@@ -48,6 +51,11 @@ export function GroupTable({ table, teams, qualification }: Props) {
                 {label}
               </th>
             ))}
+            {odds && (
+              <th className="py-1.5 pe-3 ps-2 text-end font-medium" title={t('oddsColTitle')}>
+                {t('oddsCol')}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -89,6 +97,23 @@ export function GroupTable({ table, teams, qualification }: Props) {
                     </td>
                   );
                 })}
+                {odds && (
+                  <td className="py-1.5 pe-3 ps-2">
+                    {odds[row.teamId] ? (
+                      <OddsBar
+                        value={odds[row.teamId]!.advance}
+                        title={t('oddsBreakdown', {
+                          w: num(Math.round(odds[row.teamId]!.winGroup * 100)),
+                          t: num(Math.round(odds[row.teamId]!.topTwo * 100)),
+                          b: num(Math.round(odds[row.teamId]!.bestThird * 100)),
+                        })}
+                        className="ms-auto w-12"
+                      />
+                    ) : (
+                      <span className="block text-end text-slate-600">·</span>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

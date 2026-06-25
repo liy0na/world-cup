@@ -1,15 +1,18 @@
-import type { ThirdPlaceRanking } from '@wc/shared';
+import type { ThirdPlaceRanking, TeamOdds } from '@wc/shared';
 import { Flag } from '../lib/flags';
 import { useI18n } from '../lib/i18n';
 import { teamName } from '../lib/teamNames';
 import type { TeamMap } from '../lib/teams';
+import { OddsBar } from './OddsBar';
 
 interface Props {
   ranking: ThirdPlaceRanking;
   teams: TeamMap;
+  /** Advancement odds per team id (Monte-Carlo). Column is hidden when absent. */
+  odds?: Record<string, TeamOdds>;
 }
 
-export function ThirdPlaceTable({ ranking, teams }: Props) {
+export function ThirdPlaceTable({ ranking, teams, odds }: Props) {
   const { t, lang, num } = useI18n();
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
@@ -27,7 +30,12 @@ export function ThirdPlaceTable({ ranking, teams }: Props) {
             <th className="py-1.5 text-start font-medium">{t('colTeam')}</th>
             <th className="py-1.5 px-1.5 text-end font-medium">Pts</th>
             <th className="py-1.5 px-1.5 text-end font-medium">GD</th>
-            <th className="py-1.5 px-3 text-end font-medium">{t('colGF')}</th>
+            <th className="py-1.5 px-1.5 text-end font-medium">{t('colGF')}</th>
+            {odds && (
+              <th className="py-1.5 pe-3 ps-1.5 text-end font-medium" title={t('oddsColTitle')}>
+                {t('oddsCol')}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -59,7 +67,24 @@ export function ThirdPlaceTable({ ranking, teams }: Props) {
                 <td className="py-1.5 px-1.5 text-end tabular-nums text-slate-400">
                   <span dir="ltr">{num(row.gd > 0 ? `+${row.gd}` : String(row.gd))}</span>
                 </td>
-                <td className="py-1.5 px-3 text-end tabular-nums text-slate-400">{num(row.gf)}</td>
+                <td className="py-1.5 px-1.5 text-end tabular-nums text-slate-400">{num(row.gf)}</td>
+                {odds && (
+                  <td className="py-1.5 pe-3 ps-1.5">
+                    {odds[row.teamId] ? (
+                      <OddsBar
+                        value={odds[row.teamId]!.advance}
+                        title={t('oddsBreakdown', {
+                          w: num(Math.round(odds[row.teamId]!.winGroup * 100)),
+                          t: num(Math.round(odds[row.teamId]!.topTwo * 100)),
+                          b: num(Math.round(odds[row.teamId]!.bestThird * 100)),
+                        })}
+                        className="ms-auto w-12"
+                      />
+                    ) : (
+                      <span className="block text-end text-slate-600">·</span>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

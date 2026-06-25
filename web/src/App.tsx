@@ -4,6 +4,7 @@ import { Bracket, type KoResult } from './components/Bracket';
 import { GroupTable } from './components/GroupTable';
 import { AllMatches } from './components/AllMatches';
 import { LiveScores } from './components/LiveScores';
+import { OddsPanel } from './components/OddsPanel';
 import { Scenarios } from './components/Scenarios';
 import { TeamRecords } from './components/TeamRecords';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
@@ -11,6 +12,7 @@ import { TopAssists } from './components/TopAssists';
 import { TopScorers } from './components/TopScorers';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
+import { useOdds } from './hooks/useOdds';
 import { useVisitorStats } from './hooks/useVisitorStats';
 import { timeAgo } from './lib/format';
 import { useI18n, type Lang } from './lib/i18n';
@@ -81,6 +83,7 @@ export function App() {
   };
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
+  const { odds, loading: oddsLoading } = useOdds(view?.teams, view?.matches);
 
   const scenarioCount = Object.keys(scenario).length;
   const phaseLabel = view
@@ -200,12 +203,19 @@ export function App() {
               <>
                 <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {view.groupTables.map((table) => (
-                    <GroupTable key={table.group} table={table} teams={teams} qualification={view.qualification} />
+                    <GroupTable
+                      key={table.group}
+                      table={table}
+                      teams={teams}
+                      qualification={view.qualification}
+                      odds={odds?.byTeam}
+                    />
                   ))}
                 </section>
                 <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
+                <OddsPanel odds={odds} teams={teams} loading={oddsLoading} />
                 <section className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                  <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} />
+                  <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} odds={odds?.byTeam} />
                   <TopScorers scorers={view.topScorers ?? []} teams={teams} />
                   <TopAssists assists={view.topAssists ?? []} teams={teams} />
                   <div className="lg:col-span-2 2xl:col-span-3">
