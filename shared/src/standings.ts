@@ -202,3 +202,30 @@ export function computeAllGroupTables(teams: Team[], matches: Match[]): GroupTab
   const groups = [...new Set(teams.map((t) => t.group))].sort();
   return groups.map((g) => computeGroupTable(g, teams, matches));
 }
+
+/**
+ * Team ids whose final position was separated from the team immediately above or
+ * below ONLY by fair-play points or FIFA ranking (FIFA 2026 criteria f/g) — i.e.
+ * the two were level on points, head-to-head (a–c) AND overall goal difference /
+ * goals (d–e). Used to flag "decided by discipline / ranking" cells in the
+ * scenario grid. `table` must have been produced by computeGroupTable(matches).
+ */
+export function lowTiebreakTeams(table: GroupTable, matches: Match[]): Set<string> {
+  const flagged = new Set<string>();
+  const rows = table.rows;
+  for (let i = 0; i < rows.length - 1; i++) {
+    const a = rows[i]!;
+    const b = rows[i + 1]!;
+    if (a.points !== b.points) continue; // separated by points (criterion before a)
+    // Within everyone level on these points, did head-to-head (a–c) separate them?
+    const cluster = rows.filter((r) => r.points === a.points).map((r) => r.teamId);
+    const h2h = headToHead(new Set(cluster), matches);
+    const ha = h2h.get(a.teamId)!;
+    const hb = h2h.get(b.teamId)!;
+    if (ha.pts !== hb.pts || ha.gd !== hb.gd || ha.gf !== hb.gf) continue; // h2h separated
+    if (a.gd !== b.gd || a.gf !== b.gf) continue; // overall GD / goals separated
+    flagged.add(a.teamId);
+    flagged.add(b.teamId);
+  }
+  return flagged;
+}

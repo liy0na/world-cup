@@ -3,6 +3,7 @@ export * from './standings';
 export * from './thirds';
 export * from './bracket';
 export * from './qualification';
+export * from './scenarioGrid';
 export * from './scorers';
 export * from './stats';
 export * from './derive';
