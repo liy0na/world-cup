@@ -1,3 +1,4 @@
+import { computeGroupTable } from './standings';
 import type {
   GroupLetter,
   Match,
@@ -151,6 +152,18 @@ function analyseGroup(groupTeams: Team[], group: GroupLetter, matches: Match[]):
     const thirdPts = sortedPts[2] ?? 0;
     thirdGuaranteedPts = Math.min(thirdGuaranteedPts, thirdPts);
     thirdPossibleMaxPts = Math.max(thirdPossibleMaxPts, thirdPts);
+  }
+
+  // Once every group game is played the table is final, so margin-dependent
+  // tiebreakers (goal difference, goals — criteria d/e) are no longer "open".
+  // The scenario logic above stays margin-independent (a team tied on points and
+  // head-to-head points spans best..worst), which would leave a side that has
+  // clinched 2nd purely on goal difference looking like it could still drop to
+  // 3rd. Snap to the authoritative final standings instead.
+  if (remaining.length === 0) {
+    for (const row of computeGroupTable(group, groupTeams, matches).rows) {
+      teamRanks.set(row.teamId, { minRank: row.rank, maxRank: row.rank });
+    }
   }
 
   return { ids, finished, remaining, teamRanks, maxPoints, basePoints: base, thirdGuaranteedPts, thirdPossibleMaxPts };

@@ -51,6 +51,28 @@ describe('computeQualification — within-group clinching', () => {
     expect(q.byTeam['a2']!.outlook).toBe('advanced');
   });
 
+  it('flags a 2nd-place team in a FINISHED group as advanced when only goal difference separates it from 3rd', () => {
+    // Mirrors the real Group B (Switzerland/Canada/Bosnia/Qatar): all 6 games played.
+    // CAN and BIH both finish on 4 pts and DREW their head-to-head 1-1, so head-to-head
+    // points (criterion a) cannot separate them — only overall goal difference does
+    // (CAN +5 vs BIH -1). Since the group is over, that tiebreak is final: CAN is 2nd
+    // (advanced/through), BIH is 3rd. CAN must NOT be left in the best-third lifeline.
+    const teams = [team('SUI', 'B'), team('CAN', 'B'), team('BIH', 'B'), team('QAT', 'B')];
+    const matches = [
+      result('B', 'CAN', 'BIH', 1, 1),
+      result('B', 'QAT', 'SUI', 1, 1),
+      result('B', 'SUI', 'BIH', 4, 1),
+      result('B', 'CAN', 'QAT', 6, 0),
+      result('B', 'SUI', 'CAN', 2, 1),
+      result('B', 'BIH', 'QAT', 3, 1),
+    ];
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['CAN']!.outlook).toBe('advanced');
+    expect(q.byTeam['CAN']!.clinchedRank).toBe(2);
+    expect(q.byTeam['BIH']!.clinchedRank).toBe(3);
+    expect(q.byTeam['BIH']!.outlook).not.toBe('advanced');
+  });
+
   it('eliminates a team via head-to-head even though it could win its last game (2026 rule)', () => {
     // STR is strong (6 pts, plays T last). X and Y are on 3 and have both BEATEN T.
     // T (0 pts) can beat STR to reach 3, but when it ties X or Y it loses the head-to-head,
