@@ -195,6 +195,11 @@ function MatchCard({
           {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
         </div>
       ) : null}
+      {match.venue && (
+        <div className="truncate border-t border-slate-800/60 px-2 py-0.5 text-[9px] text-slate-500" title={match.venue}>
+          📍 {match.venue}
+        </div>
+      )}
     </div>
   );
 }

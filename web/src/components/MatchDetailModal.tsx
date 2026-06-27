@@ -131,7 +131,9 @@ export function MatchDetailModal({ match, teams, onClose }: Props) {
           <div className="space-y-4 p-4">
             {/* Facts */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-              {detail.venue && <span>📍 {[detail.venue, detail.city].filter(Boolean).join(', ')}</span>}
+              {(detail.venue || match.venue) && (
+                <span>📍 {detail.venue ? [detail.venue, detail.city].filter(Boolean).join(', ') : match.venue}</span>
+              )}
               {detail.attendance ? (
                 <span>
                   👥 {t('attendance')}: {fmtNum(detail.attendance, lang)}

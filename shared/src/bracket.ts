@@ -62,6 +62,7 @@ function toBracketMatch(def: KoMatchDef, ctx: BuildContext): BracketMatch {
     stage: def.stage,
     home: resolveSlot(def.home, ctx),
     away: resolveSlot(def.away, ctx),
+    venue: actual?.venue,
     status: actual?.status,
     homeScore: actual?.homeScore,
     awayScore: actual?.awayScore,

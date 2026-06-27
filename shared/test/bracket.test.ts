@@ -10,13 +10,14 @@ function koResult(
   matchNumber: number,
   homeScore: number,
   awayScore: number,
-  opts: { penalties?: { home: number; away: number }; afterExtraTime?: boolean } = {},
+  opts: { penalties?: { home: number; away: number }; afterExtraTime?: boolean; venue?: string } = {},
 ): Match {
   return {
     id: `m${matchNumber}`,
     stage: 'r32',
     matchNumber,
     kickoff: '2026-06-28T00:00:00Z',
+    venue: opts.venue,
     status: 'finished',
     home: { source: '', label: '' },
     away: { source: '', label: '' },
@@ -139,6 +140,14 @@ describe('buildBracket — later rounds and edge cases', () => {
     expect(find(bracket, 104).winnerTeamId).toBeDefined(); // a champion
     expect(find(bracket, 103).home.teamId).toBeDefined(); // third place fed by SF losers
     expect(find(bracket, 103).away.teamId).toBeDefined();
+  });
+
+  it('carries the venue from the actual knockout match onto the bracket card', () => {
+    const bracket = buildBracket(tables, ranking(['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']), [
+      koResult(73, 2, 0, { venue: 'Dallas' }),
+    ]);
+    expect(find(bracket, 73).venue).toBe('Dallas');
+    expect(find(bracket, 74).venue).toBeUndefined(); // no actual match supplied
   });
 
   it('produces the full 32-match knockout structure', () => {

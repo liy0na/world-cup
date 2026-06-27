@@ -80,6 +80,7 @@ function toMatch(m: OfMatch, nameToGroup: Map<string, GroupLetter>): Match {
     group,
     matchNumber: m.num,
     kickoff: parseKickoff(m.date, m.time),
+    venue: m.ground,
     status,
     home: slot(m.team1),
     away: slot(m.team2),

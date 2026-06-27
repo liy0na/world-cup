@@ -108,6 +108,8 @@ export interface Match {
   matchNumber?: number;
   /** ISO-8601 kickoff in UTC. */
   kickoff: string;
+  /** Host city / stadium from the schedule backbone (e.g. "Dallas"). */
+  venue?: string;
   status: MatchStatus;
   /** Live clock minute, when status === "live". */
   minute?: number;
@@ -182,6 +184,8 @@ export interface BracketMatch {
   stage: Exclude<Stage, 'group'>;
   home: SlotRef;
   away: SlotRef;
+  /** Host city / stadium, when known from the schedule. */
+  venue?: string;
   status?: MatchStatus;
   homeScore?: number;
   awayScore?: number;
