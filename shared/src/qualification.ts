@@ -4,6 +4,7 @@ import type {
   Match,
   NeedOutcome,
   Qualification,
+  StandingRow,
   Team,
   TeamStatus,
 } from './types';
@@ -53,6 +54,10 @@ interface GroupAnalysis {
   thirdGuaranteedPts: number;
   /** Largest the 3rd-placed team's points can possibly reach across all scenarios. */
   thirdPossibleMaxPts: number;
+  /** True once every group game is played (the standings — incl. goals — are final). */
+  complete: boolean;
+  /** The locked 3rd-placed row; only meaningful (final goals) when `complete`. */
+  thirdRow: StandingRow | null;
 }
 
 /**
@@ -160,13 +165,27 @@ function analyseGroup(groupTeams: Team[], group: GroupLetter, matches: Match[]):
   // head-to-head points spans best..worst), which would leave a side that has
   // clinched 2nd purely on goal difference looking like it could still drop to
   // 3rd. Snap to the authoritative final standings instead.
-  if (remaining.length === 0) {
-    for (const row of computeGroupTable(group, groupTeams, matches).rows) {
+  const complete = remaining.length === 0;
+  const table = computeGroupTable(group, groupTeams, matches);
+  if (complete) {
+    for (const row of table.rows) {
       teamRanks.set(row.teamId, { minRank: row.rank, maxRank: row.rank });
     }
   }
+  const thirdRow = table.rows.find((r) => r.rank === 3) ?? null;
 
-  return { ids, finished, remaining, teamRanks, maxPoints, basePoints: base, thirdGuaranteedPts, thirdPossibleMaxPts };
+  return {
+    ids,
+    finished,
+    remaining,
+    teamRanks,
+    maxPoints,
+    basePoints: base,
+    thirdGuaranteedPts,
+    thirdPossibleMaxPts,
+    complete,
+    thirdRow,
+  };
 }
 
 /**
@@ -205,11 +224,29 @@ function computeNeed(a: GroupAnalysis, teamId: string): Pick<TeamStatus, 'ifWin'
   return { ifWin: evaluate('win'), ifDraw: evaluate('draw'), ifLoss: evaluate('loss') };
 }
 
+function fifaRank(teamsById: Map<string, Team>, teamId: string): number {
+  return teamsById.get(teamId)?.fifaRanking ?? Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Does third-placed row `a` rank strictly above `b`? Mirrors the cross-group
+ * comparison in rankThirdPlacedTeams: points, goal difference, goals scored,
+ * fair-play, then FIFA World Ranking.
+ */
+function thirdOutranks(a: StandingRow, b: StandingRow, teamsById: Map<string, Team>): boolean {
+  if (a.points !== b.points) return a.points > b.points;
+  if (a.gd !== b.gd) return a.gd > b.gd;
+  if (a.gf !== b.gf) return a.gf > b.gf;
+  if (a.fairPlay !== b.fairPlay) return a.fairPlay > b.fairPlay;
+  return fifaRank(teamsById, a.teamId) < fifaRank(teamsById, b.teamId);
+}
+
 function classify(
   team: Team,
   rank: { minRank: number; maxRank: number },
   own: GroupAnalysis,
   others: GroupAnalysis[],
+  teamsById: Map<string, Team>,
 ): TeamStatus {
   const status: TeamStatus = {
     teamId: team.id,
@@ -232,11 +269,26 @@ function classify(
     if (guaranteedAhead >= QUALIFYING_THIRDS) return { ...status, outlook: 'eliminated' };
   }
 
-  // Guaranteed a best-8 third? Must always finish top-3, and at my worst-case points
-  // at most 7 other groups' thirds could possibly outrank me.
+  // Guaranteed a best-8 third? Must always finish top-3, and across the other
+  // groups at most 7 could ever field a third-placed team ranked above me.
   if (rank.maxRank <= 3) {
-    const myWorst = own.basePoints.get(team.id)!;
-    const couldBeatMe = others.filter((o) => o.thirdPossibleMaxPts >= myWorst).length;
+    const me = own.complete ? own.thirdRow : null;
+    let couldBeatMe: number;
+    if (me && me.teamId === team.id) {
+      // My group is over, so my third-place mark (points, GD, goals) is final.
+      // Count an already-finished group only when its third ACTUALLY outranks me
+      // on the full third-place tiebreaker — a finished third level on points but
+      // behind on goal difference / goals can never pass me. Groups still playing
+      // stay conservative: any third that can still reach my points may beat me.
+      couldBeatMe = others.filter((o) =>
+        o.complete && o.thirdRow
+          ? thirdOutranks(o.thirdRow, me, teamsById)
+          : o.thirdPossibleMaxPts >= me.points,
+      ).length;
+    } else {
+      const myWorst = own.basePoints.get(team.id)!;
+      couldBeatMe = others.filter((o) => o.thirdPossibleMaxPts >= myWorst).length;
+    }
     if (couldBeatMe <= QUALIFYING_THIRDS - 1) return { ...status, outlook: 'qualified_third' };
   }
 
@@ -249,6 +301,7 @@ function classify(
  */
 export function computeQualification(teams: Team[], matches: Match[]): Qualification {
   const groups = [...new Set(teams.map((t) => t.group))].sort() as GroupLetter[];
+  const teamsById = new Map(teams.map((t) => [t.id, t]));
   const analyses = new Map<GroupLetter, GroupAnalysis>();
   for (const g of groups) {
     analyses.set(g, analyseGroup(teams.filter((t) => t.group === g), g, matches));
@@ -261,7 +314,7 @@ export function computeQualification(teams: Team[], matches: Match[]): Qualifica
     for (const team of teams.filter((t) => t.group === g)) {
       const rank = own.teamRanks.get(team.id);
       if (!rank) continue;
-      byTeam[team.id] = { ...classify(team, rank, own, others), ...computeNeed(own, team.id) };
+      byTeam[team.id] = { ...classify(team, rank, own, others, teamsById), ...computeNeed(own, team.id) };
     }
   }
   return { byTeam };

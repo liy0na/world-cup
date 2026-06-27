@@ -167,3 +167,58 @@ describe('computeQualification — best-third elimination across groups', () => 
     expect(q.byTeam['A4']!.outlook).not.toBe('eliminated');
   });
 });
+
+describe('computeQualification — best-third guarantee respects goal tiebreakers', () => {
+  // A FINISHED 4-team group whose 3rd-placed team (L3) ends on 3 points with a
+  // chosen goal difference. L1 wins all, L2 wins two, L3 beats only L4.
+  function finishedThird3(L: GroupLetter, l3WinBy: number): { teams: Team[]; matches: Match[] } {
+    const [a, b, c, d] = [`${L}1`, `${L}2`, `${L}3`, `${L}4`];
+    return {
+      teams: [team(a, L), team(b, L), team(c, L), team(d, L)],
+      matches: [
+        result(L, a, b, 1, 0),
+        result(L, a, c, 1, 0), // L3 loses to L1
+        result(L, a, d, 1, 0),
+        result(L, b, c, 1, 0), // L3 loses to L2
+        result(L, b, d, 1, 0),
+        result(L, c, d, l3WinBy, 0), // L3's only win — controls its goal difference
+      ],
+    };
+  }
+  // An all-scheduled group: its eventual 3rd CAN still reach 3+ points, so it
+  // stays a conservative "possible beater".
+  function unfinishedGroup(L: GroupLetter): { teams: Team[]; matches: Match[] } {
+    const ids = [`${L}1`, `${L}2`, `${L}3`, `${L}4`];
+    const ms: Match[] = [];
+    for (let i = 0; i < ids.length; i++)
+      for (let j = i + 1; j < ids.length; j++)
+        ms.push(result(L, ids[i]!, ids[j]!, 0, 0, { status: 'scheduled' }));
+    return { teams: ids.map((id) => team(id, L)), matches: ms };
+  }
+
+  it('flags a finished 3rd as qualified even when other finished 3rds are level on points but behind on goals', () => {
+    // Target A3: finished 3rd on 3 pts with a STRONG goal difference.
+    const target = finishedThird3('A', 6); // L3 wins 6-0 -> GF6 GA2 GD+4
+    // 4 finished groups with a 3rd on 4 pts -> genuine beaters.
+    const fourPt = (['B', 'C', 'D', 'E'] as GroupLetter[]).map((L) => finishedGroupThird4(L));
+    // 3 finished groups whose 3rd is level on points (3) but BEHIND on goals
+    // (lost its only win 1-0 -> GD -2). These must NOT count against A3.
+    const weak = (['F', 'G', 'H'] as GroupLetter[]).map((L) => finishedThird3(L, 1));
+    // 3 still-playing groups -> conservative beaters (could reach 3+). Total real beaters = 7.
+    const open = (['I', 'J', 'K'] as GroupLetter[]).map((L) => unfinishedGroup(L));
+
+    const bundles = [target, ...fourPt, ...weak, ...open];
+    const teams = bundles.flatMap((b) => b.teams);
+    const matches = bundles.flatMap((b) => b.matches);
+
+    const q = computeQualification(teams, matches);
+    // 4 four-point thirds + 3 open groups = 7 possible beaters <= 7, so A3 is locked
+    // into a best-8 third place. The three level-on-points-but-behind-on-goals thirds
+    // (F3/G3/H3) are correctly excluded — counting them (the old points-only bug) would
+    // give 10 and wrongly leave A3 'alive'.
+    expect(q.byTeam['A3']!.clinchedRank).toBe(3);
+    expect(q.byTeam['A3']!.outlook).toBe('qualified_third');
+    // sanity: the weaker finished thirds are not themselves promoted to qualified.
+    expect(q.byTeam['F3']!.outlook).not.toBe('qualified_third');
+  });
+});
