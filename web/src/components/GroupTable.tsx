@@ -72,7 +72,9 @@ export function GroupTable({ table, teams, qualification, odds }: Props) {
                     <span className="hidden font-mono text-[11px] text-slate-400 w-9 shrink-0 sm:inline">
                       {team?.code ?? row.teamId}
                     </span>
-                    <span className="text-slate-200 truncate">{teamName(team, lang) || row.teamId}</span>
+                    {/* Phones: just the 3-letter code. Larger screens: the full name. */}
+                    <span className="font-mono text-slate-200 sm:hidden">{team?.code ?? row.teamId}</span>
+                    <span className="hidden truncate text-slate-200 sm:block">{teamName(team, lang) || row.teamId}</span>
                     {style.marker && (
                       <span
                         className={`shrink-0 text-xs ${style.markerClass}`}

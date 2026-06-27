@@ -59,8 +59,10 @@ export function ThirdPlaceTable({ ranking, teams, odds }: Props) {
                 <td className="py-1.5">
                   <span className="inline-flex items-center gap-2">
                     <Flag code={team?.code} />
-                    <span className="font-mono text-[11px] text-slate-400">{team?.code ?? row.teamId}</span>
-                    <span className="text-slate-200">{teamName(team, lang) || row.teamId}</span>
+                    <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">{team?.code ?? row.teamId}</span>
+                    {/* Phones: just the 3-letter code. Larger screens: the full name. */}
+                    <span className="font-mono text-slate-200 sm:hidden">{team?.code ?? row.teamId}</span>
+                    <span className="hidden text-slate-200 sm:inline">{teamName(team, lang) || row.teamId}</span>
                   </span>
                 </td>
                 <td className="py-1.5 px-1.5 text-end tabular-nums font-semibold text-slate-100">{num(row.points)}</td>
