@@ -264,8 +264,18 @@ function classify(
     // Cannot reach the top two. Locked last => out. Otherwise test the third-place lifeline.
     if (rank.minRank === 4) return { ...status, outlook: 'eliminated' };
     const myBest = own.maxPoints.get(team.id)!;
-    // Sound: count only groups whose third is GUARANTEED strictly above my best.
-    const guaranteedAhead = others.filter((o) => o.thirdGuaranteedPts > myBest).length;
+    const me = own.complete ? own.thirdRow : null;
+    // Count groups whose third is GUARANTEED to finish above me. Strictly-more
+    // points is always a guarantee. Once my group is over and I am its third, my
+    // mark (points, GD, goals) is final, so another FINISHED group whose third
+    // outranks me on the full third-place tiebreaker is a guarantee too — mirrors
+    // the qualified_third branch below. Points alone would miss a rival level on
+    // points but ahead on goal difference, leaving a doomed third stuck 'alive'.
+    const guaranteedAhead = others.filter((o) => {
+      if (o.thirdGuaranteedPts > myBest) return true;
+      if (me && me.teamId === team.id && o.complete && o.thirdRow) return thirdOutranks(o.thirdRow, me, teamsById);
+      return false;
+    }).length;
     if (guaranteedAhead >= QUALIFYING_THIRDS) return { ...status, outlook: 'eliminated' };
   }
 

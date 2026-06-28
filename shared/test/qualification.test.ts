@@ -221,4 +221,32 @@ describe('computeQualification — best-third guarantee respects goal tiebreaker
     // sanity: the weaker finished thirds are not themselves promoted to qualified.
     expect(q.byTeam['F3']!.outlook).not.toBe('qualified_third');
   });
+
+  it('eliminates a finished 3rd that is outside the best-8 only on goal tiebreakers (never left "alive")', () => {
+    // Group stage fully over. Seven groups field a 3rd on 4 pts (the clear top 7).
+    // Five more groups have a 3rd on exactly 3 pts; only goal difference orders them.
+    // Target A3 has the weakest goal difference of the five, so it is the 12th-best
+    // third and is mathematically eliminated — but only the FULL tiebreaker proves
+    // it. A points-only elimination check finds just 7 thirds strictly ahead, so the
+    // old logic left A3 stuck on 'alive' forever. It must resolve to 'eliminated'.
+    const fourPt = (['B', 'C', 'D', 'E', 'F', 'G', 'H'] as GroupLetter[]).map((L) => finishedGroupThird4(L));
+    const target = finishedThird3('A', 1); // 3 pts, GD -1 (weakest)
+    const stronger = [
+      finishedThird3('I', 6), // 3 pts, GD +4
+      finishedThird3('J', 4), // 3 pts, GD +2
+      finishedThird3('K', 3), // 3 pts, GD +1
+      finishedThird3('L', 2), // 3 pts, GD  0
+    ];
+
+    const bundles = [target, ...fourPt, ...stronger];
+    const teams = bundles.flatMap((b) => b.teams);
+    const matches = bundles.flatMap((b) => b.matches);
+
+    const q = computeQualification(teams, matches);
+    expect(q.byTeam['A3']!.clinchedRank).toBe(3); // locked 3rd in its own group
+    expect(q.byTeam['A3']!.outlook).not.toBe('alive');
+    expect(q.byTeam['A3']!.outlook).toBe('eliminated');
+    // The strongest 3-pt third still squeaks into the best-8.
+    expect(q.byTeam['I3']!.outlook).toBe('qualified_third');
+  });
 });
