@@ -50,7 +50,8 @@ export function App() {
   const { t, lang, setLang, num } = useI18n();
   const { snapshot, status } = useLiveState();
   const visitorStats = useVisitorStats();
-  const [tab, setTab] = useState<Tab>('groups');
+  // `null` = no explicit choice yet, so the default tab tracks the tournament phase.
+  const [tab, setTab] = useState<Tab | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   // Seed any scenario shared via the URL hash (#s=…) on first load.
   const initial = useRef<{ group: Scenario; ko: Scenario } | undefined>(undefined);
@@ -83,6 +84,15 @@ export function App() {
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
   const { odds } = useOdds(view?.teams, view?.matches);
+
+  // Once the group stage is over the tournament reshapes itself, with no code
+  // changes needed for the next edition: the knockout bracket leads, the stat
+  // tables move under it, group what-if is retired, and the bracket reads as the
+  // real draw rather than a projection.
+  const groupStageOver = !!view && view.status.phase !== 'group';
+  const tabs: Tab[] = groupStageOver ? ['bracket', 'groups', 'matches'] : ['groups', 'matches', 'bracket', 'whatif'];
+  const defaultTab: Tab = groupStageOver ? 'bracket' : 'groups';
+  const activeTab: Tab = tab && tabs.includes(tab) ? tab : defaultTab;
 
   const scenarioCount = Object.keys(scenario).length;
   const phaseLabel = view
@@ -119,6 +129,19 @@ export function App() {
     });
   };
 
+  // Tournament-wide stat tables. Shown under the groups tab while the group stage
+  // runs, then relocated beneath the knockout bracket once it is over.
+  const statsSection = view && (
+    <section className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} odds={groupStageOver ? undefined : odds?.byTeam} />
+      <TopScorers scorers={view.topScorers ?? []} teams={teams} />
+      <TopAssists assists={view.topAssists ?? []} teams={teams} />
+      <div className="lg:col-span-2 2xl:col-span-3">
+        <TeamRecords stats={view.teamStats ?? []} teams={teams} />
+      </div>
+    </section>
+  );
+
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-[#0a0e16]/90 backdrop-blur">
@@ -144,16 +167,16 @@ export function App() {
             </div>
           </div>
           <nav className="mt-3 flex gap-1">
-            {(['groups', 'matches', 'bracket', 'whatif'] as Tab[]).map((key) => (
+            {tabs.map((key) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  tab === key ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === key ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {t(`tab.${key}`)}
+                {t(key === 'bracket' && groupStageOver ? 'tab.knockout' : `tab.${key}`)}
                 {key === 'whatif' && scenarioCount > 0 && (
                   <span className="mx-1.5 rounded bg-emerald-600 px-1 text-[10px] text-white">{num(scenarioCount)}</span>
                 )}
@@ -168,7 +191,7 @@ export function App() {
           <div className="py-20 text-center text-slate-500">{t('loading')}</div>
         ) : (
           <>
-            {scenarioCount > 0 && tab !== 'whatif' && (
+            {scenarioCount > 0 && activeTab !== 'whatif' && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-700/50 bg-emerald-900/20 px-4 py-2 text-sm">
                 <span className="text-emerald-200">{t('scenarioActive', { n: scenarioCount })}</span>
                 <div className="flex items-center gap-4">
@@ -182,7 +205,7 @@ export function App() {
               </div>
             )}
 
-            {tab === 'whatif' && (
+            {activeTab === 'whatif' && (
               <WhatIfEditor
                 matches={snapshot!.matches}
                 teams={teams}
@@ -195,10 +218,10 @@ export function App() {
                 shared={copied}
               />
             )}
-            {(tab === 'groups' || tab === 'bracket') && <LiveScores matches={view.matches} teams={teams} />}
-            {tab === 'matches' && <AllMatches matches={view.matches} teams={teams} />}
+            {(activeTab === 'groups' || activeTab === 'bracket') && <LiveScores matches={view.matches} teams={teams} />}
+            {activeTab === 'matches' && <AllMatches matches={view.matches} teams={teams} />}
 
-            {tab === 'groups' && (
+            {activeTab === 'groups' && (
               <>
                 <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {view.groupTables.map((table) => (
@@ -207,31 +230,24 @@ export function App() {
                       table={table}
                       teams={teams}
                       qualification={view.qualification}
-                      odds={odds?.byTeam}
+                      odds={groupStageOver ? undefined : odds?.byTeam}
                     />
                   ))}
                 </section>
-                {odds && (
+                {!groupStageOver && odds && (
                   <p className="-mt-2 max-w-3xl text-xs text-slate-500">
                     <span className="font-medium text-slate-400">{t('oddsCol')}</span> = {t('oddsColTitle')}. {t('oddsModelNote', { n: num(odds.iterations) })}
                   </p>
                 )}
                 <Scenarios groupTables={view.groupTables} qualification={view.qualification} teams={teams} matches={view.matches} />
-                <section className="grid items-stretch gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                  <ThirdPlaceTable ranking={view.thirdPlace} teams={teams} odds={odds?.byTeam} />
-                  <TopScorers scorers={view.topScorers ?? []} teams={teams} />
-                  <TopAssists assists={view.topAssists ?? []} teams={teams} />
-                  <div className="lg:col-span-2 2xl:col-span-3">
-                    <TeamRecords stats={view.teamStats ?? []} teams={teams} />
-                  </div>
-                </section>
+                {!groupStageOver && statsSection}
               </>
             )}
 
-            {tab === 'bracket' && (
+            {activeTab === 'bracket' && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="max-w-3xl text-xs text-slate-500">{t('bracketIntro')}</p>
+                  <p className="max-w-3xl text-xs text-slate-500">{t(groupStageOver ? 'bracketIntroLive' : 'bracketIntro')}</p>
                   <label className="flex shrink-0 items-center gap-2 text-sm text-slate-300">
                     <input type="checkbox" checked={bracketEdit} onChange={(e) => setBracketEdit(e.target.checked)} className="accent-emerald-500" />
                     {t('editResults')}
@@ -245,6 +261,7 @@ export function App() {
                   results={koResults}
                   onChange={setKo}
                 />
+                {groupStageOver && statsSection}
               </>
             )}
           </>

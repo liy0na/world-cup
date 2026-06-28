@@ -19,6 +19,7 @@ const en: Dict = {
   'tab.groups': 'Groups & tables',
   'tab.matches': 'Matches',
   'tab.bracket': 'Projected bracket',
+  'tab.knockout': 'Knockout bracket',
   'tab.whatif': 'What-if',
   loading: 'Loading the tournament…',
   scenarioActive: 'What-if scenario active — {n} hypothetical result(s) applied.',
@@ -117,6 +118,8 @@ const en: Dict = {
   editResults: 'Edit results',
   bracketIntro:
     "Projected matchups as it stands — winners/runners-up are current standings, the eight best thirds are slotted via FIFA's combination table, and names turn green once a team has qualified. Turn on edit mode to enter knockout scores (with extra time / penalties) and watch winners advance.",
+  bracketIntroLive:
+    'The knockout bracket — slots are filled with the teams that actually qualified, and winners advance automatically as results come in. Turn on edit mode to play out hypothetical scores (with extra time / penalties).',
   whatifTitle: 'What-if calculator',
   whatifIntro:
     'Enter scores for upcoming group games, then Calculate to recompute the tables, who qualifies, and the projected bracket from your hypothetical results. Leave a game blank to keep it open.',
@@ -149,6 +152,7 @@ const fa: Dict = {
   'tab.groups': 'گروه‌ها و جدول‌ها',
   'tab.matches': 'بازی‌ها',
   'tab.bracket': 'جدول حذفی پیش‌بینی‌شده',
+  'tab.knockout': 'جدول حذفی',
   'tab.whatif': 'حالت فرضی',
   loading: 'در حال بارگذاری مسابقات…',
   scenarioActive: 'حالت فرضی فعال است — {n} نتیجهٔ فرضی اعمال شد.',
@@ -247,6 +251,8 @@ const fa: Dict = {
   editResults: 'ویرایش نتایج',
   bracketIntro:
     'دیدارهای پیش‌بینی‌شده بر اساس وضعیت کنونی — صدرنشینان و تیم‌های دوم بر پایهٔ جدول فعلی‌اند و هشت تیم سوم برتر طبق جدول ترکیبی فیفا چیده شده‌اند؛ نام تیم‌ها پس از صعود قطعی سبز می‌شود. برای وارد کردن نتایج مرحلهٔ حذفی (با وقت اضافه و پنالتی) و دیدن صعود تیم‌ها، حالت ویرایش را روشن کنید.',
+  bracketIntroLive:
+    'جدول مرحلهٔ حذفی — تیم‌هایی که واقعاً صعود کرده‌اند در جایگاه‌ها قرار گرفته‌اند و برندگان با ثبت نتایج به‌طور خودکار صعود می‌کنند. برای شبیه‌سازی نتایج فرضی (با وقت اضافه و پنالتی) حالت ویرایش را روشن کنید.',
   whatifTitle: 'حالت فرضی (شبیه‌سازی)',
   whatifIntro:
     'برای بازی‌های پیش‌روی گروهی نتیجه وارد کنید و سپس «محاسبه» را بزنید تا جدول‌ها، صعودها و جدول حذفی پیش‌بینی‌شده بر اساس نتایج فرضی شما دوباره محاسبه شوند. هر بازی را خالی بگذارید تا باز بماند.',
