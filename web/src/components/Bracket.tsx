@@ -131,6 +131,7 @@ function MatchCard({
   editable,
   result,
   onChange,
+  isNext,
   lang,
   t,
 }: {
@@ -140,11 +141,14 @@ function MatchCard({
   editable: boolean;
   result: KoResult | undefined;
   onChange: (matchId: string, patch: KoResult) => void;
+  /** The soonest upcoming match — highlighted so it's easy to spot. */
+  isNext: boolean;
   lang: Lang;
   t: T;
 }) {
   const id = `m${match.matchNumber}`;
   const live = match.status === 'live';
+  const border = live ? 'border-red-500/60' : isNext ? 'border-amber-500/60' : 'border-slate-800';
   const bothResolved = Boolean(match.home.teamId && match.away.teamId);
   const hScore = editable ? result?.h : match.homeScore;
   const aScore = editable ? result?.a : match.awayScore;
@@ -154,14 +158,21 @@ function MatchCard({
   const slotProps = { teams, qualification, lang, t };
 
   return (
-    <div className={`w-52 shrink-0 rounded-lg border bg-slate-900/60 ${live ? 'border-red-500/50' : 'border-slate-800'}`}>
+    <div className={`w-52 shrink-0 rounded-lg border bg-slate-900/60 ${border}`}>
       <div className="flex items-center justify-between px-2 pt-1 text-[9px] uppercase tracking-wider text-slate-600">
         <span>
           {SHORT[match.stage]} · M{fmtNum(match.matchNumber, lang)}
         </span>
         <span className="flex items-center gap-1">
           {match.afterExtraTime && <span className="text-slate-500">{t('aet')}</span>}
-          {live && <span className="text-red-400">{t('live')}</span>}
+          {live ? (
+            <span className="flex items-center gap-1 text-red-400">
+              <span className="live-dot h-1.5 w-1.5 rounded-full bg-red-500" />
+              {t('live')}
+            </span>
+          ) : (
+            isNext && <span className="text-amber-400">{t('nextMatch')}</span>
+          )}
         </span>
       </div>
       <SlotLine
@@ -220,6 +231,14 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
   const all = [...bracket.r32, ...bracket.r16, ...bracket.qf, ...bracket.sf, ...bracket.final, ...bracket.third];
   const byNumber = new Map(all.map((m) => [m.matchNumber, m]));
 
+  // Match number of the soonest upcoming game — highlighted so it's easy to find
+  // in the tree. Suppressed while a game is live (that one is flagged instead).
+  const nextMatchNumber = all.some((m) => m.status === 'live')
+    ? undefined
+    : all
+        .filter((m) => m.status === 'scheduled' && Number.isFinite(Date.parse(m.kickoff ?? '')))
+        .sort((a, b) => Date.parse(a.kickoff!) - Date.parse(b.kickoff!))[0]?.matchNumber;
+
   const feeders = (m: BracketMatch): number[] => {
     const h = parseFeeder(m.home.source);
     const a = parseFeeder(m.away.source);
@@ -228,7 +247,7 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
 
   const third = bracket.third[0];
   const card = (m: BracketMatch) => (
-    <MatchCard match={m} result={results[`m${m.matchNumber}`]} teams={teams} qualification={qualification} editable={editable} onChange={onChange} lang={lang} t={t} />
+    <MatchCard match={m} result={results[`m${m.matchNumber}`]} teams={teams} qualification={qualification} editable={editable} onChange={onChange} isNext={m.matchNumber === nextMatchNumber} lang={lang} t={t} />
   );
 
   const Node = ({ n }: { n: number }): ReactElement | null => {
