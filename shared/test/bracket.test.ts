@@ -142,12 +142,14 @@ describe('buildBracket — later rounds and edge cases', () => {
     expect(find(bracket, 103).away.teamId).toBeDefined();
   });
 
-  it('carries the venue from the actual knockout match onto the bracket card', () => {
+  it('carries the venue and kickoff from the actual knockout match onto the bracket card', () => {
     const bracket = buildBracket(tables, ranking(['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']), [
       koResult(73, 2, 0, { venue: 'Dallas' }),
     ]);
     expect(find(bracket, 73).venue).toBe('Dallas');
+    expect(find(bracket, 73).kickoff).toBe('2026-06-28T00:00:00Z');
     expect(find(bracket, 74).venue).toBeUndefined(); // no actual match supplied
+    expect(find(bracket, 74).kickoff).toBeUndefined();
   });
 
   it('produces the full 32-match knockout structure', () => {

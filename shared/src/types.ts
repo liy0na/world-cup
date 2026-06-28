@@ -186,6 +186,8 @@ export interface BracketMatch {
   away: SlotRef;
   /** Host city / stadium, when known from the schedule. */
   venue?: string;
+  /** ISO-8601 kickoff in UTC, when known from the schedule. */
+  kickoff?: string;
   status?: MatchStatus;
   homeScore?: number;
   awayScore?: number;

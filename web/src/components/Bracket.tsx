@@ -1,10 +1,12 @@
 import type { ReactElement } from 'react';
 import type { Bracket as BracketType, BracketMatch, Qualification, SlotRef } from '@wc/shared';
 import { Flag } from '../lib/flags';
+import { kickoffDay, kickoffTime } from '../lib/format';
 import { fmtNum, toLatinDigits, useI18n, type Lang } from '../lib/i18n';
 import { bracketNameClass } from '../lib/status';
 import { slotDisplay } from '../lib/teamNames';
 import { isResolved, slotCode, type TeamMap } from '../lib/teams';
+import { NextMatchTimer, hasNextMatch } from './NextMatchTimer';
 
 export interface KoResult {
   h?: number;
@@ -195,9 +197,18 @@ function MatchCard({
           {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
         </div>
       ) : null}
-      {match.venue && (
-        <div className="truncate border-t border-slate-800/60 px-2 py-0.5 text-[9px] text-slate-500" title={match.venue}>
-          📍 {match.venue}
+      {(match.kickoff || match.venue) && (
+        <div className="flex items-center gap-1.5 border-t border-slate-800/60 px-2 py-0.5 text-[9px] text-slate-500">
+          {match.kickoff && (
+            <span className="shrink-0 whitespace-nowrap" dir="ltr">
+              🕒 {kickoffDay(match.kickoff, lang)}, {kickoffTime(match.kickoff, lang)}
+            </span>
+          )}
+          {match.venue && (
+            <span className="min-w-0 truncate" title={match.venue}>
+              📍 {match.venue}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -259,17 +270,25 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
   // Force LTR: the tree layout + connectors are built left-to-right; Persian
   // team names still render correctly inside the cards.
   return (
-    <section dir="ltr" className="overflow-x-auto pb-4">
-      <div className="min-w-max">
-        <div className="mb-2 flex gap-8">
-          {rounds.map((s) => (
-            <div key={s} className="w-52 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              {t(`round.${s}`)}
-            </div>
-          ))}
+    <div>
+      {hasNextMatch(all) && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('nextMatch')}</span>
+          <NextMatchTimer matches={all} />
         </div>
-        <Node n={104} />
-      </div>
-    </section>
+      )}
+      <section dir="ltr" className="overflow-x-auto pb-4">
+        <div className="min-w-max">
+          <div className="mb-2 flex gap-8">
+            {rounds.map((s) => (
+              <div key={s} className="w-52 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                {t(`round.${s}`)}
+              </div>
+            ))}
+          </div>
+          <Node n={104} />
+        </div>
+      </section>
+    </div>
   );
 }
