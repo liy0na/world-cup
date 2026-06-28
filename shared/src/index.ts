@@ -5,6 +5,7 @@ export * from './bracket';
 export * from './qualification';
 export * from './scenarioGrid';
 export * from './odds';
+export * from './knockout';
 export { ELO_RATINGS, DEFAULT_RATING } from './data/eloRatings';
 export * from './scorers';
 export * from './stats';

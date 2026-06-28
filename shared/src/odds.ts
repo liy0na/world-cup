@@ -56,7 +56,7 @@ function poisson(lambda: number, rng: Rng): number {
 }
 
 /** Sample a scoreline from two ratings: the stronger side gets more expected goals. */
-function sampleScore(rHome: number, rAway: number, rng: Rng): [number, number] {
+export function sampleScore(rHome: number, rAway: number, rng: Rng): [number, number] {
   const sup = ((rHome - rAway) / 100) * GOALS_PER_100;
   const lambdaH = Math.max(0.18, BASELINE_GOALS + sup / 2);
   const lambdaA = Math.max(0.18, BASELINE_GOALS - sup / 2);

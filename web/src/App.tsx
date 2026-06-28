@@ -7,11 +7,13 @@ import { LiveScores } from './components/LiveScores';
 import { Scenarios } from './components/Scenarios';
 import { TeamRecords } from './components/TeamRecords';
 import { ThirdPlaceTable } from './components/ThirdPlaceTable';
+import { TitleOdds } from './components/TitleOdds';
 import { TopAssists } from './components/TopAssists';
 import { TopScorers } from './components/TopScorers';
 import { WhatIfEditor, type Draft } from './components/WhatIfEditor';
 import { useLiveState, type ConnectionStatus } from './hooks/useLiveState';
 import { useOdds } from './hooks/useOdds';
+import { useTitleOdds } from './hooks/useTitleOdds';
 import { useVisitorStats } from './hooks/useVisitorStats';
 import { timeAgo } from './lib/format';
 import { useI18n, type Lang } from './lib/i18n';
@@ -84,6 +86,8 @@ export function App() {
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
   const { odds } = useOdds(view?.teams, view?.matches);
+  // Knockout title odds — the worker short-circuits until the group stage ends.
+  const { title } = useTitleOdds(view?.teams, view?.matches);
 
   // Once the group stage is over the tournament reshapes itself, with no code
   // changes needed for the next edition: the knockout bracket leads, the stat
@@ -262,6 +266,7 @@ export function App() {
                   onChange={setKo}
                 />
                 {groupStageOver && statsSection}
+                {title?.ready && <TitleOdds title={title} teams={teams} />}
               </>
             )}
           </>

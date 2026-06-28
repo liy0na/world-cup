@@ -96,6 +96,11 @@ const en: Dict = {
   oddsModelNote:
     'Monte-Carlo simulation ({n} runs) playing out the remaining group games, weighted by World Football Elo ratings (eloratings.net). For fun — not betting advice.',
   oddsBreakdown: 'Win group {w}% · Top 2 {t}% · Best third {b}%',
+  titleOddsTitle: 'Title odds',
+  titleOddsSubtitle: 'chance to win the World Cup',
+  titleBreakdown: 'Semi-final {s}% · Final {f}% · Champion {c}%',
+  titleOddsModelNote:
+    'Monte-Carlo simulation ({n} runs) playing the bracket out from here, sampling each tie from World Football Elo ratings (eloratings.net); a tie still level after extra time goes to an Elo-weighted shootout. For fun — not betting advice.',
   colTeam: 'Team',
   colGrp: 'Grp',
   colGF: 'GF',
@@ -229,6 +234,11 @@ const fa: Dict = {
   oddsModelNote:
     'شبیه‌سازی مونت‌کارلو ({n} اجرا) با شبیه‌سازی بازی‌های باقی‌ماندهٔ گروهی و وزن‌دهی بر اساس ردهٔ ایلوی فوتبال جهانی (eloratings.net). صرفاً برای سرگرمی — توصیهٔ شرط‌بندی نیست.',
   oddsBreakdown: 'صدرنشینی {w}٪ · دو تیم برتر {t}٪ · بهترین تیم سوم {b}٪',
+  titleOddsTitle: 'شانس قهرمانی',
+  titleOddsSubtitle: 'احتمال قهرمانی در جام جهانی',
+  titleBreakdown: 'نیمه‌نهایی {s}٪ · فینال {f}٪ · قهرمانی {c}٪',
+  titleOddsModelNote:
+    'شبیه‌سازی مونت‌کارلو ({n} اجرا) با اجرای جدول حذفی از این نقطه و نمونه‌گیری هر بازی بر اساس ردهٔ ایلوی فوتبال جهانی (eloratings.net)؛ بازی‌های مساوی پس از وقت اضافه با ضربات پنالتی وزن‌دار ایلو تعیین می‌شوند. صرفاً برای سرگرمی — توصیهٔ شرط‌بندی نیست.',
   colTeam: 'تیم',
   colGrp: 'گروه',
   colGF: 'گل زده',
