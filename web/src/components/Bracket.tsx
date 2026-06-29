@@ -24,6 +24,8 @@ interface Props {
   qualification: Qualification;
   editable: boolean;
   results: Record<string, KoResult>;
+  /** Match numbers whose real result is in — locked against what-if editing. */
+  locked: Set<number>;
   onChange: (matchId: string, patch: KoResult) => void;
 }
 
@@ -129,6 +131,7 @@ function MatchCard({
   teams,
   qualification,
   editable,
+  locked,
   result,
   onChange,
   isNext,
@@ -139,6 +142,8 @@ function MatchCard({
   teams: TeamMap;
   qualification: Qualification;
   editable: boolean;
+  /** This match already has a real result — display it, never accept what-if scores. */
+  locked: boolean;
   result: KoResult | undefined;
   onChange: (matchId: string, patch: KoResult) => void;
   /** The soonest upcoming match — highlighted so it's easy to spot. */
@@ -150,8 +155,10 @@ function MatchCard({
   const live = match.status === 'live';
   const border = live ? 'border-red-500/60' : isNext ? 'border-amber-500/60' : 'border-slate-800';
   const bothResolved = Boolean(match.home.teamId && match.away.teamId);
-  const hScore = editable ? result?.h : match.homeScore;
-  const aScore = editable ? result?.a : match.awayScore;
+  // Real results are locked in; only resolved, not-yet-decided matches accept what-if scores.
+  const canEdit = editable && bothResolved && !locked;
+  const hScore = canEdit ? result?.h : match.homeScore;
+  const aScore = canEdit ? result?.a : match.awayScore;
   const level = typeof hScore === 'number' && hScore === aScore;
   const homeWins = match.winnerTeamId && match.winnerTeamId === match.home.teamId;
   const awayWins = match.winnerTeamId && match.winnerTeamId === match.away.teamId;
@@ -165,6 +172,11 @@ function MatchCard({
         </span>
         <span className="flex items-center gap-1">
           {match.afterExtraTime && <span className="text-slate-500">{t('aet')}</span>}
+          {editable && locked && bothResolved && (
+            <span className="text-slate-500" title={t('lockedResult')} aria-label={t('lockedResult')}>
+              🔒
+            </span>
+          )}
           {live ? (
             <span className="flex items-center gap-1 text-red-400">
               <span className="live-dot h-1.5 w-1.5 rounded-full bg-red-500" />
@@ -179,7 +191,7 @@ function MatchCard({
         slot={match.home}
         score={hScore}
         isWinner={Boolean(homeWins)}
-        editable={editable && bothResolved}
+        editable={canEdit}
         onScore={(v) => onChange(id, { h: v === '' ? undefined : Number(v) })}
         {...slotProps}
       />
@@ -188,11 +200,11 @@ function MatchCard({
         slot={match.away}
         score={aScore}
         isWinner={Boolean(awayWins)}
-        editable={editable && bothResolved}
+        editable={canEdit}
         onScore={(v) => onChange(id, { a: v === '' ? undefined : Number(v) })}
         {...slotProps}
       />
-      {editable && bothResolved && level ? (
+      {canEdit && level ? (
         <div className="flex items-center gap-2 border-t border-slate-800/60 px-2 py-1 text-[11px]">
           <span className="text-slate-500">{t('pens')}</span>
           <Num value={result?.penH} onChange={(v) => onChange(id, { penH: v === '' ? undefined : Number(v) })} label="home penalties" lang={lang} />
@@ -203,7 +215,7 @@ function MatchCard({
             {t('aet')}
           </label>
         </div>
-      ) : !editable && match.penalties ? (
+      ) : !canEdit && match.penalties ? (
         <div className="border-t border-slate-800/60 px-2 py-0.5 text-end text-[10px] text-slate-500">
           {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
         </div>
@@ -226,7 +238,7 @@ function MatchCard({
   );
 }
 
-export function Bracket({ bracket, teams, qualification, editable, results, onChange }: Props) {
+export function Bracket({ bracket, teams, qualification, editable, results, locked, onChange }: Props) {
   const { t, lang } = useI18n();
   const all = [...bracket.r32, ...bracket.r16, ...bracket.qf, ...bracket.sf, ...bracket.final, ...bracket.third];
   const byNumber = new Map(all.map((m) => [m.matchNumber, m]));
@@ -247,7 +259,7 @@ export function Bracket({ bracket, teams, qualification, editable, results, onCh
 
   const third = bracket.third[0];
   const card = (m: BracketMatch) => (
-    <MatchCard match={m} result={results[`m${m.matchNumber}`]} teams={teams} qualification={qualification} editable={editable} onChange={onChange} isNext={m.matchNumber === nextMatchNumber} lang={lang} t={t} />
+    <MatchCard match={m} result={results[`m${m.matchNumber}`]} teams={teams} qualification={qualification} editable={editable} locked={locked.has(m.matchNumber)} onChange={onChange} isNext={m.matchNumber === nextMatchNumber} lang={lang} t={t} />
   );
 
   const Node = ({ n }: { n: number }): ReactElement | null => {

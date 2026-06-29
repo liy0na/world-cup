@@ -122,6 +122,7 @@ const en: Dict = {
   pens: 'pens',
   aet: 'a.e.t.',
   editResults: 'Edit results',
+  lockedResult: 'Final result — locked',
   bracketIntro:
     "Projected matchups as it stands — winners/runners-up are current standings, the eight best thirds are slotted via FIFA's combination table, and names turn green once a team has qualified. Turn on edit mode to enter knockout scores (with extra time / penalties) and watch winners advance.",
   bracketIntroLive:
@@ -261,6 +262,7 @@ const fa: Dict = {
   pens: 'پنالتی',
   aet: 'پس از وقت اضافه',
   editResults: 'ویرایش نتایج',
+  lockedResult: 'نتیجهٔ نهایی — قفل‌شده',
   bracketIntro:
     'دیدارهای پیش‌بینی‌شده بر اساس وضعیت کنونی — صدرنشینان و تیم‌های دوم بر پایهٔ جدول فعلی‌اند و هشت تیم سوم برتر طبق جدول ترکیبی فیفا چیده شده‌اند؛ نام تیم‌ها پس از صعود قطعی سبز می‌شود. برای وارد کردن نتایج مرحلهٔ حذفی (با وقت اضافه و پنالتی) و دیدن صعود تیم‌ها، حالت ویرایش را روشن کنید.',
   bracketIntroLive:

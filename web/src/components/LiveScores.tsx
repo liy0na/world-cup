@@ -4,7 +4,7 @@ import { Flag } from '../lib/flags';
 import { fmtNum, useI18n } from '../lib/i18n';
 import { kickoffDay, kickoffLabel } from '../lib/format';
 import { slotDisplay } from '../lib/teamNames';
-import { slotCode, type TeamMap } from '../lib/teams';
+import { isResolved, slotCode, type TeamMap } from '../lib/teams';
 import type { Lang } from '../lib/i18n';
 import { useGoalFlash, type FlashSide } from '../hooks/useGoalFlash';
 import { MatchDetailModal } from './MatchDetailModal';
@@ -238,11 +238,14 @@ export function LiveScores({ matches, teams }: Props) {
     });
   };
 
-  const group = matches.filter((m) => m.stage === 'group');
-  const live = group.filter((m) => m.status === 'live');
+  // Group and knockout games share these strips: once the group stage ends,
+  // recent/live/upcoming surface knockout results too. Upcoming knockout fixtures
+  // only appear once both teams are known — no "Winner M89" placeholder rows.
   const byKickoff = (a: Match, b: Match) => Date.parse(a.kickoff) - Date.parse(b.kickoff);
-  const recent = group.filter((m) => m.status === 'finished').sort(byKickoff).slice(-12).reverse();
-  const upcoming = group.filter((m) => m.status === 'scheduled').sort(byKickoff).slice(0, 10);
+  const resolved = (m: Match) => isResolved(m.home) && isResolved(m.away);
+  const live = matches.filter((m) => m.status === 'live');
+  const recent = matches.filter((m) => m.status === 'finished').sort(byKickoff).slice(-12).reverse();
+  const upcoming = matches.filter((m) => m.status === 'scheduled' && resolved(m)).sort(byKickoff).slice(0, 10);
 
   if (live.length + recent.length + upcoming.length === 0) return null;
 
@@ -278,7 +281,7 @@ export function LiveScores({ matches, teams }: Props) {
       )}
       {recent.length > 0 && <Strip title={t('recentResults')} matches={recent} {...common} />}
       {upcoming.length > 0 && (
-        <Strip title={t('upcoming')} badge={<NextMatchTimer matches={group} />} matches={upcoming} {...common} />
+        <Strip title={t('upcoming')} badge={<NextMatchTimer matches={matches} />} matches={upcoming} {...common} />
       )}
       {selectedMatch && (
         <MatchDetailModal match={selectedMatch} teams={teams} onClose={() => setSelected(null)} />

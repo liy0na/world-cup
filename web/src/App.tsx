@@ -35,7 +35,8 @@ function applyScenario(snapshot: Snapshot, scenario: Scenario): Snapshot {
   if (Object.keys(scenario).length === 0) return snapshot;
   const matches: Match[] = snapshot.matches.map((m) => {
     const w = scenario[m.id];
-    if (!w || typeof w.h !== 'number' || typeof w.a !== 'number') return m;
+    // Real results are locked in: a (possibly shared/stale) scenario never overrides a finished match.
+    if (!w || m.status === 'finished' || typeof w.h !== 'number' || typeof w.a !== 'number') return m;
     return {
       ...m,
       status: 'finished',
@@ -85,6 +86,17 @@ export function App() {
   };
   const view = useMemo(() => (snapshot ? applyScenario(snapshot, scenario) : undefined), [snapshot, scenario]);
   const teams = useMemo(() => (view ? teamMap(view) : new Map()), [view]);
+  // Knockout matches with a real result already in — locked against what-if edits.
+  // Derived from the raw snapshot so a scenario can never mark a match "finished" here.
+  const lockedKo = useMemo(
+    () =>
+      new Set(
+        (snapshot?.matches ?? [])
+          .filter((m) => m.stage !== 'group' && m.status === 'finished' && typeof m.matchNumber === 'number')
+          .map((m) => m.matchNumber as number),
+      ),
+    [snapshot],
+  );
   const { odds } = useOdds(view?.teams, view?.matches);
   // Knockout title odds — the worker short-circuits until the group stage ends.
   const { title } = useTitleOdds(view?.teams, view?.matches);
@@ -263,6 +275,7 @@ export function App() {
                   qualification={view.qualification}
                   editable={bracketEdit}
                   results={koResults}
+                  locked={lockedKo}
                   onChange={setKo}
                 />
                 {groupStageOver && statsSection}
