@@ -1,5 +1,38 @@
-import type { Match } from '@wc/shared';
+import type { Bracket, Match } from '@wc/shared';
 import { normaliseName, type LiveObservation, type Schedule } from '../providers/provider';
+
+/**
+ * Fill knockout fixtures' home/away team ids from the projected bracket. The
+ * backbone schedule carries knockout games as placeholders ("2A", "Winner M73")
+ * until the upstream feed fills in real names — but the bracket already resolves
+ * them from the group tables and the results played so far. Without this, a
+ * knockout fixture has no team-id pair, so `mergeLive` can never match a live
+ * observation to it: the result (and any shoot-out) is dropped and the winner
+ * never advances. We only fill slots that are still unresolved, so a real name
+ * already on the fixture is never overwritten.
+ */
+export function resolveKnockoutFixtures(matches: Match[], bracket: Bracket): Match[] {
+  const resolved = new Map<number, { home?: string; away?: string }>();
+  for (const m of [
+    ...bracket.r32,
+    ...bracket.r16,
+    ...bracket.qf,
+    ...bracket.sf,
+    ...bracket.third,
+    ...bracket.final,
+  ]) {
+    resolved.set(m.matchNumber, { home: m.home.teamId, away: m.away.teamId });
+  }
+
+  return matches.map((m) => {
+    if (m.stage === 'group' || typeof m.matchNumber !== 'number') return m;
+    const r = resolved.get(m.matchNumber);
+    if (!r) return m;
+    const home = !m.home.teamId && r.home ? { ...m.home, teamId: r.home } : m.home;
+    const away = !m.away.teamId && r.away ? { ...m.away, teamId: r.away } : m.away;
+    return home === m.home && away === m.away ? m : { ...m, home, away };
+  });
+}
 
 /**
  * Overlay best-effort live observations onto the backbone fixtures. Each

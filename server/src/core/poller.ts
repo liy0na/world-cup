@@ -1,7 +1,7 @@
-import type { MatchDetail, Snapshot } from '@wc/shared';
+import { computeStandings, type MatchDetail, type Snapshot } from '@wc/shared';
 import type { Config } from '../config';
 import { GoalTracker } from '../pipeline/goals';
-import { mergeLive } from '../pipeline/matchStore';
+import { mergeLive, resolveKnockoutFixtures } from '../pipeline/matchStore';
 import { buildSnapshot } from '../pipeline/snapshot';
 import type { Providers } from '../providers';
 import type { LiveObservation, MatchRef, Schedule } from '../providers/provider';
@@ -81,7 +81,14 @@ export class Poller {
   private async doRefresh(): Promise<void> {
     try {
       await this.loadBackbone();
-      const schedule = this.schedule!;
+      const base = this.schedule!;
+      // Resolve knockout fixtures from the projected bracket so their team-id
+      // pairs exist before we try to match live results onto them.
+      const { bracket } = computeStandings(base.teams, base.matches);
+      const schedule: Schedule = {
+        ...base,
+        matches: resolveKnockoutFixtures(base.matches, bracket),
+      };
 
       // Seed the scorer cache from the last-good snapshot so restarts keep goals.
       if (!this.goalsSeeded) {

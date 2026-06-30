@@ -121,6 +121,8 @@ export interface Match {
   awayCards?: CardTally;
   /** Knockout only: score is after extra time (120'). Display/labeling. */
   afterExtraTime?: boolean;
+  /** Knockout only: the 90' score, kept when extra time changed it (so the UI can show FT and AET). */
+  fullTime?: { home: number; away: number };
   /** Knockout only: penalty-shootout score, used to decide a level match. */
   penalties?: { home: number; away: number };
   /** Goal events (scorers), when available from the live provider. */
@@ -192,6 +194,8 @@ export interface BracketMatch {
   homeScore?: number;
   awayScore?: number;
   afterExtraTime?: boolean;
+  /** The 90' score, kept when extra time changed it (so the UI can show FT and AET). */
+  fullTime?: { home: number; away: number };
   penalties?: { home: number; away: number };
   /** Resolved winner/loser team ids once the match is decided (incl. penalties). */
   winnerTeamId?: string;

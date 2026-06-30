@@ -68,6 +68,7 @@ function toBracketMatch(def: KoMatchDef, ctx: BuildContext): BracketMatch {
     homeScore: actual?.homeScore,
     awayScore: actual?.awayScore,
     afterExtraTime: actual?.afterExtraTime,
+    fullTime: actual?.fullTime,
     penalties: actual?.penalties,
   };
 }

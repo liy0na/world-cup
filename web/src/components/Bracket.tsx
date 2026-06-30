@@ -215,9 +215,18 @@ function MatchCard({
             {t('aet')}
           </label>
         </div>
-      ) : !canEdit && match.penalties ? (
-        <div className="border-t border-slate-800/60 px-2 py-0.5 text-end text-[10px] text-slate-500">
-          {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
+      ) : !canEdit && (match.penalties || match.fullTime) ? (
+        <div className="flex items-center justify-end gap-2 border-t border-slate-800/60 px-2 py-0.5 text-[10px] text-slate-500">
+          {match.fullTime && (
+            <span dir="ltr">
+              {t('ft')} {fmtNum(match.fullTime.home, lang)}–{fmtNum(match.fullTime.away, lang)}
+            </span>
+          )}
+          {match.penalties && (
+            <span dir="ltr">
+              {t('pens')} {fmtNum(match.penalties.home, lang)}–{fmtNum(match.penalties.away, lang)}
+            </span>
+          )}
         </div>
       ) : null}
       {(match.kickoff || match.venue) && (

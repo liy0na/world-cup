@@ -87,13 +87,17 @@ export function MatchDetailModal({ match, teams, onClose }: Props) {
     );
   };
 
+  const pens = match.penalties;
+  const aet = match.afterExtraTime || Boolean(pens);
   const status =
     match.status === 'live'
       ? match.minute
         ? `${fmtNum(match.minute, lang)}'`
         : t('live')
       : match.status === 'finished'
-        ? t('ft')
+        ? aet
+          ? t('aet')
+          : t('ft')
         : `${kickoffDay(match.kickoff, lang)} · ${kickoffLabel(match.kickoff, lang)}`;
 
   return (
@@ -116,8 +120,24 @@ export function MatchDetailModal({ match, teams, onClose }: Props) {
           </div>
           <div className="flex items-center gap-3">
             <TeamHead id={homeId} align="start" />
-            <div className="shrink-0 px-2 text-center text-xl font-bold tabular-nums text-slate-100" dir="ltr">
-              {hasScore ? `${fmtNum(scoreFor(homeId)!, lang)} – ${fmtNum(scoreFor(awayId)!, lang)}` : 'vs'}
+            <div className="shrink-0 px-2 text-center" dir="ltr">
+              <div className="text-xl font-bold tabular-nums text-slate-100">
+                {hasScore ? `${fmtNum(scoreFor(homeId)!, lang)} – ${fmtNum(scoreFor(awayId)!, lang)}` : 'vs'}
+              </div>
+              {hasScore && (pens || match.fullTime) && (
+                <div className="flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  {match.fullTime && (
+                    <span>
+                      {t('ft')} {fmtNum(match.fullTime.home, lang)}–{fmtNum(match.fullTime.away, lang)}
+                    </span>
+                  )}
+                  {pens && (
+                    <span>
+                      {t('pens')} {fmtNum(pens.home, lang)}–{fmtNum(pens.away, lang)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <TeamHead id={awayId} align="end" />
           </div>

@@ -19,7 +19,14 @@ interface OfMatch {
   time?: string;
   team1: string;
   team2: string;
-  score?: { ft?: [number, number]; ht?: [number, number] };
+  // openfootball splits a knockout result into 90' (ft), after-extra-time (et)
+  // and penalty-shootout (p) scores; ht is the half-time score.
+  score?: {
+    ft?: [number, number];
+    ht?: [number, number];
+    et?: [number, number];
+    p?: [number, number];
+  };
   ground?: string;
 }
 interface OfFile {
@@ -62,8 +69,11 @@ function buildTeams(groups: OfGroups): { teams: Team[]; nameToGroup: Map<string,
 
 function toMatch(m: OfMatch, nameToGroup: Map<string, GroupLetter>): Match {
   const stage = stageOf(m.round, m.num);
-  const ft = m.score?.ft;
-  const status: MatchStatus = ft ? 'finished' : 'scheduled';
+  const { ft, et, p } = m.score ?? {};
+  // The decisive scoreline is after extra time when it was played, otherwise
+  // full time — that is what decides the tie (level => the shoot-out does).
+  const final = et ?? ft;
+  const status: MatchStatus = final ? 'finished' : 'scheduled';
 
   const slot = (name: string): SlotRef => {
     const group = nameToGroup.get(name);
@@ -84,12 +94,17 @@ function toMatch(m: OfMatch, nameToGroup: Map<string, GroupLetter>): Match {
     status,
     home: slot(m.team1),
     away: slot(m.team2),
-    homeScore: ft?.[0],
-    awayScore: ft?.[1],
+    homeScore: final?.[0],
+    awayScore: final?.[1],
+    afterExtraTime: et ? true : undefined,
+    penalties: p ? { home: p[0], away: p[1] } : undefined,
+    // Keep the 90' score only when extra time changed it, so the UI can show
+    // "FT 1–1 · AET 2–2" without cluttering games that ended in regulation.
+    fullTime: et && ft ? { home: ft[0], away: ft[1] } : undefined,
   };
 }
 
-function parse(groups: OfGroups, schedule: OfFile): Schedule {
+export function parse(groups: OfGroups, schedule: OfFile): Schedule {
   const { teams, nameToGroup } = buildTeams(groups);
   const matches = schedule.matches.map((m) => toMatch(m, nameToGroup));
   return { teams, matches };

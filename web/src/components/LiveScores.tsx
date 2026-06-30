@@ -60,17 +60,23 @@ function TeamRow({
   code,
   name,
   score,
+  pen,
   show,
   live,
   scored,
+  winner,
   lang,
 }: {
   code: string;
   name: string;
   score?: number;
+  /** Penalty-shootout tally, shown in parentheses next to the score. */
+  pen?: number;
   show: boolean;
   live: boolean;
   scored: boolean;
+  /** True for the side that won the tie (incl. on penalties). */
+  winner: boolean;
   lang: Lang;
 }) {
   const scoreColor = scored ? 'goal-pop text-emerald-300' : live ? 'text-red-300' : 'text-slate-100';
@@ -79,13 +85,30 @@ function TeamRow({
       <div className="flex items-center gap-2 min-w-0">
         <Flag code={code} />
         <span className="font-mono text-[11px] text-slate-500 w-8 shrink-0">{code}</span>
-        <span className="text-sm text-slate-200 truncate">{name}</span>
+        <span className={`truncate text-sm ${winner ? 'font-semibold text-white' : 'text-slate-200'}`}>{name}</span>
+        {winner && <span className="shrink-0 text-[11px] text-emerald-400">✓</span>}
       </div>
-      <span className={`tabular-nums text-base font-semibold ${scoreColor}`}>
-        {show && typeof score === 'number' ? fmtNum(score, lang) : '–'}
+      <span className={`flex items-baseline gap-1 tabular-nums ${scoreColor}`}>
+        <span className="text-base font-semibold">{show && typeof score === 'number' ? fmtNum(score, lang) : '–'}</span>
+        {typeof pen === 'number' && (
+          <span className="text-xs font-medium text-slate-400" dir="ltr">
+            ({fmtNum(pen, lang)})
+          </span>
+        )}
       </span>
     </div>
   );
+}
+
+/** Decide a finished knockout tie for display: higher score, else the shoot-out. */
+function koWinner(match: Match): string | undefined {
+  if (match.status !== 'finished') return undefined;
+  const { homeScore: h, awayScore: a, penalties: p } = match;
+  if (typeof h !== 'number' || typeof a !== 'number') return undefined;
+  if (h > a) return match.home.teamId;
+  if (a > h) return match.away.teamId;
+  if (p && p.home !== p.away) return p.home > p.away ? match.home.teamId : match.away.teamId;
+  return undefined;
 }
 
 function MatchCard({
@@ -114,6 +137,10 @@ function MatchCard({
   const goals = match.goals ?? [];
   const homeGoals = goals.filter((g) => g.teamId === match.home.teamId);
   const awayGoals = goals.filter((g) => g.teamId === match.away.teamId);
+  // Knockout tie-breakers: a shoot-out always implies extra time was played.
+  const pens = match.penalties;
+  const aet = match.afterExtraTime || Boolean(pens);
+  const winnerId = koWinner(match);
   // Detail (lineups/timeline) only exists once a match has kicked off.
   const clickable = !!onOpen && (live || finished);
 
@@ -137,7 +164,7 @@ function MatchCard({
             {match.minute ? `${fmtNum(match.minute, lang)}'` : t('live')}
           </span>
         ) : finished ? (
-          <span className="text-slate-500">{t('ft')}</span>
+          <span className="text-slate-500">{aet ? t('aet') : t('ft')}</span>
         ) : (
           <span className="text-slate-500">
             {kickoffDay(match.kickoff, lang)} · {kickoffLabel(match.kickoff, lang)}
@@ -149,20 +176,39 @@ function MatchCard({
         code={homeCode}
         name={slotDisplay(match.home, teams, lang, t)}
         score={match.homeScore}
+        pen={pens?.home}
         show={hasScore}
         live={live}
         scored={flash === 'home' || flash === 'both'}
+        winner={!!winnerId && winnerId === match.home.teamId}
         lang={lang}
       />
       <TeamRow
         code={awayCode}
         name={slotDisplay(match.away, teams, lang, t)}
         score={match.awayScore}
+        pen={pens?.away}
         show={hasScore}
         live={live}
         scored={flash === 'away' || flash === 'both'}
+        winner={!!winnerId && winnerId === match.away.teamId}
         lang={lang}
       />
+
+      {(pens || match.fullTime) && (
+        <div className="mt-1 flex items-center justify-end gap-2 text-[10px] uppercase tracking-wider text-slate-500">
+          {match.fullTime && (
+            <span dir="ltr">
+              {t('ft')} {fmtNum(match.fullTime.home, lang)}–{fmtNum(match.fullTime.away, lang)}
+            </span>
+          )}
+          {pens && (
+            <span dir="ltr">
+              {t('pens')} {fmtNum(pens.home, lang)}–{fmtNum(pens.away, lang)}
+            </span>
+          )}
+        </div>
+      )}
 
       {showScorers && (homeGoals.length > 0 || awayGoals.length > 0) && (
         <div className="mt-2 space-y-1 border-t border-slate-800/70 pt-2">
